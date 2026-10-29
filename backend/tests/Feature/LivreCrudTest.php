@@ -56,6 +56,26 @@ class LivreCrudTest extends TestCase
             ->assertJsonValidationErrors(['titre', 'annee']);
     }
 
+    public function test_it_rejects_a_duplicate_book(): void
+    {
+        Livre::create([
+            'titre' => 'Le Petit Prince',
+            'auteur' => 'Antoine de Saint-Exupéry',
+            'annee' => 1943,
+        ]);
+
+        $this->postJson('/api/books', [
+            'titre' => 'Le Petit Prince',
+            'auteur' => 'Antoine de Saint-Exupéry',
+            'annee' => 1943,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['titre'])
+            ->assertJsonPath('errors.titre.0', 'Ce livre existe déjà dans la collection.');
+
+        $this->assertDatabaseCount('livres', 1);
+    }
+
     public function test_it_updates_a_book(): void
     {
         $livre = Livre::create([
@@ -79,6 +99,49 @@ class LivreCrudTest extends TestCase
             'titre' => 'Updated title',
             'annee' => 1943,
         ]);
+    }
+
+    public function test_it_rejects_updating_a_book_to_an_existing_duplicate(): void
+    {
+        $existing = Livre::create([
+        'titre' => 'Existing title',
+        'auteur' => 'An author',
+        'annee' => 2000,
+        ]);
+        $livre = Livre::create([
+        'titre' => 'Different title',
+        'auteur' => 'Another author',
+        'annee' => 1999,
+        ]);
+
+        $this->putJson("/api/books/{$livre->id}", [
+        'titre' => $existing->titre,
+        'auteur' => $existing->auteur,
+        'annee' => $existing->annee,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['titre']);
+    }
+
+    public function test_it_rejects_a_partial_update_that_creates_a_duplicate(): void
+    {
+        Livre::create([
+        'titre' => 'Same title',
+        'auteur' => 'Same author',
+        'annee' => 2000,
+        ]);
+        $livre = Livre::create([
+        'titre' => 'Another title',
+        'auteur' => 'Same author',
+        'annee' => 1999,
+        ]);
+
+        $this->patchJson("/api/books/{$livre->id}", [
+        'titre' => 'Same title',
+        'annee' => 2000,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['titre']);
     }
 
     public function test_it_deletes_a_book(): void

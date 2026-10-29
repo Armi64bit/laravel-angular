@@ -1,65 +1,205 @@
-<div class="container" style="max-width: 800px; margin: 30px auto; font-family: sans-serif;">
-  <h2>Gestion des Livres (Smart Conseil Test)</h2>
+<main class="library-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/livres" aria-label="Bibliothèque, accueil">
+      <span class="brand-mark" aria-hidden="true">B</span>
+      <span class="brand-name">Bibliothèque</span>
+    </a>
+    <span class="topbar-label">Gestion de collection</span>
+  </header>
 
-  <!-- Form Section -->
-  <form [formGroup]="livreForm" (ngSubmit)="onSubmit()" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-    <h3>{{ isEditMode ? 'Modifier le Livre' : 'Ajouter un Nouveau Livre' }}</h3>
-
-    <div style="margin-bottom: 10px;">
-      <label>Titre :</label><br>
-      <input type="text" formControlName="titre" style="width: 100%; padding: 8px;">
-      <small *ngIf="livreForm.get('titre')?.invalid && livreForm.get('titre')?.touched" style="color: red;">
-        Le titre est requis.
-      </small>
+  <section class="library-content" aria-labelledby="page-title">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Votre espace de lecture</p>
+        <h1 id="page-title">Les livres</h1>
+        <p class="page-description">Retrouvez et gérez les ouvrages de votre collection.</p>
+      </div>
+      <button class="button button-primary add-button" type="button" (click)="openCreateModal()">
+        <span class="button-plus" aria-hidden="true">+</span>
+        Ajouter un livre
+      </button>
     </div>
 
-    <div style="margin-bottom: 10px;">
-      <label>Auteur :</label><br>
-      <input type="text" formControlName="auteur" style="width: 100%; padding: 8px;">
-      <small *ngIf="livreForm.get('auteur')?.invalid && livreForm.get('auteur')?.touched" style="color: red;">
-        L'auteur est requis.
-      </small>
+    <div class="collection-summary" *ngIf="!isLoading && !errorMessage">
+      <span class="summary-label">Collection</span>
+      <span class="summary-value">{{ livres.length }}</span>
+      <span class="summary-unit">{{ livres.length === 1 ? 'ouvrage' : 'ouvrages' }}</span>
     </div>
 
-    <div style="margin-bottom: 10px;">
-      <label>Année :</label><br>
-      <input type="number" formControlName="annee" style="width: 100%; padding: 8px;">
-      <small *ngIf="livreForm.get('annee')?.invalid && livreForm.get('annee')?.touched" style="color: red;">
-        Une année valide est requise.
-      </small>
+    <div class="page-error" *ngIf="errorMessage" role="alert">
+      <div>
+        <strong>Un problème est survenu</strong>
+        <p>{{ errorMessage }}</p>
+      </div>
+      <button class="button button-secondary" type="button" (click)="loadLivres()">Réessayer</button>
     </div>
 
-    <button type="submit" [disabled]="livreForm.invalid" style="padding: 10px 15px; background: #007bff; color: white; border: none; cursor: pointer;">
-      {{ isEditMode ? 'Mettre à jour' : 'Ajouter' }}
-    </button>
-    <button type="button" (click)="resetForm()" *ngIf="isEditMode" style="padding: 10px 15px; margin-left: 10px; background: #6c757d; color: white; border: none; cursor: pointer;">
-      Annuler
-    </button>
-  </form>
+    <section class="book-panel" aria-label="Collection de livres" [attr.aria-busy]="isLoading">
+      <div class="table-scroll" *ngIf="!isLoading && livres.length > 0">
+        <table class="book-table">
+          <thead>
+            <tr>
+              <th scope="col">Titre</th>
+              <th scope="col">Auteur</th>
+              <th scope="col">Année</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let livre of livres; let index = index" [style.animation-delay.ms]="index * 45">
+              <td class="book-title">{{ capitalizeInitial(livre.titre) }}</td>
+              <td class="book-author">{{ capitalizeInitial(livre.auteur) }}</td>
+              <td><span class="year-badge">{{ livre.annee }}</span></td>
+              <td class="row-actions">
+                <ng-container *ngIf="confirmingLivreId !== livre.id; else deleteConfirmation">
+                  <button class="icon-button edit-button" type="button" (click)="onEdit(livre)" [disabled]="deletingLivreId !== null" [attr.aria-label]="'Modifier ' + livre.titre">
+                    Modifier
+                  </button>
+                  <button
+                    class="icon-button delete-button"
+                    type="button"
+                    (click)="onDelete(livre.id)"
+                    [disabled]="deletingLivreId !== null"
+                    [attr.aria-label]="'Supprimer ' + livre.titre">
+                    <span *ngIf="deletingLivreId !== livre.id">Supprimer</span>
+                    <span class="button-loading" *ngIf="deletingLivreId === livre.id">
+                      <span class="spinner spinner-small" aria-hidden="true"></span>
+                      Suppression
+                    </span>
+                  </button>
+                </ng-container>
+                <ng-template #deleteConfirmation>
+                  <div class="delete-confirmation" role="group" [attr.aria-label]="'Confirmation de suppression pour ' + livre.titre">
+                    <span class="delete-prompt">Supprimer ce livre ?</span>
+                    <button class="icon-button cancel-delete-button" type="button" (click)="cancelDelete()">Annuler</button>
+                    <button
+                      class="icon-button confirm-delete-button"
+                      type="button"
+                      (click)="confirmDelete(livre.id!)"
+                      [disabled]="deletingLivreId !== null">
+                      Supprimer
+                    </button>
+                  </div>
+                </ng-template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-  <!-- Data Table Section -->
-  <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; border-collapse: collapse;">
-    <thead>
-      <tr style="background: #e9ecef;">
-        <th>Titre</th>
-        <th>Auteur</th>
-        <th>Année</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr *ngFor="let livre of livres">
-        <td>{{ livre.titre }}</td>
-        <td>{{ livre.auteur }}</td>
-        <td>{{ livre.annee }}</td>
-        <td>
-          <button (click)="onEdit(livre)" style="margin-right: 5px; background: #ffc107; border: none; padding: 5px 10px; cursor: pointer;">Modifier</button>
-          <button (click)="onDelete(livre.id)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer;">Supprimer</button>
-        </td>
-      </tr>
-      <tr *ngIf="livres.length === 0">
-        <td colspan="4" style="text-align: center;">Aucun livre trouvé.</td>
-      </tr>
-    </tbody>
-  </table>
+      <div class="book-skeleton" *ngIf="isLoading" aria-label="Chargement des livres">
+        <div class="skeleton-header skeleton-row">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="skeleton-row" *ngFor="let row of [1, 2, 3, 4]">
+          <span class="skeleton-title"></span>
+          <span class="skeleton-author"></span>
+          <span class="skeleton-year"></span>
+          <span class="skeleton-actions"></span>
+        </div>
+      </div>
+
+      <div class="empty-state" *ngIf="!isLoading && !errorMessage && livres.length === 0">
+        <div class="empty-mark" aria-hidden="true">B</div>
+        <h2>Votre collection commence ici</h2>
+        <p>Ajoutez un livre pour le retrouver facilement dans votre bibliothèque.</p>
+        <button class="button button-secondary" type="button" (click)="openCreateModal()">Ajouter un premier livre</button>
+      </div>
+    </section>
+
+    <p class="collection-note" *ngIf="!isLoading && !errorMessage && livres.length > 0">
+      {{ livres.length }} {{ livres.length === 1 ? 'livre enregistré' : 'livres enregistrés' }} dans votre collection
+    </p>
+  </section>
+</main>
+
+<div
+  class="modal-backdrop"
+  *ngIf="isModalOpen"
+  (click)="!isSaving && $event.target === $event.currentTarget && closeModal()">
+  <section
+    class="book-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    [attr.aria-busy]="isSaving">
+    <header class="modal-header">
+      <div>
+        <p class="eyebrow">{{ isEditMode ? 'Modifier la collection' : 'Enrichir la collection' }}</p>
+        <h2 id="modal-title">{{ isEditMode ? 'Modifier le livre' : 'Ajouter un livre' }}</h2>
+      </div>
+      <button
+        class="modal-close"
+        type="button"
+        aria-label="Fermer la fenêtre"
+        [disabled]="isSaving"
+        (click)="closeModal()">×</button>
+    </header>
+
+    <form [formGroup]="livreForm" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-field">
+        <label for="book-title">Titre</label>
+        <input id="book-title" type="text" formControlName="titre" maxlength="255" autocomplete="off" autofocus (blur)="capitalizeField('titre')">
+        <span class="field-error" *ngIf="livreForm.get('titre')?.hasError('required') && livreForm.get('titre')?.touched">
+          Le titre est obligatoire.
+        </span>
+        <span class="field-error" *ngIf="livreForm.get('titre')?.hasError('maxlength') && livreForm.get('titre')?.touched">
+          Le titre ne peut pas dépasser 255 caractères.
+        </span>
+      </div>
+
+      <div class="form-field">
+        <label for="book-author">Auteur</label>
+        <input id="book-author" type="text" formControlName="auteur" maxlength="255" autocomplete="off" (blur)="capitalizeField('auteur')">
+        <span class="field-error" *ngIf="livreForm.get('auteur')?.hasError('required') && livreForm.get('auteur')?.touched">
+          L’auteur est obligatoire.
+        </span>
+        <span class="field-error" *ngIf="livreForm.get('auteur')?.hasError('maxlength') && livreForm.get('auteur')?.touched">
+          Le nom ne peut pas dépasser 255 caractères.
+        </span>
+      </div>
+
+      <div class="form-field">
+        <label for="book-year">Année de publication</label>
+        <input id="book-year" type="number" formControlName="annee" min="1000" [max]="currentYear + 1" inputmode="numeric">
+        <span class="field-hint">Saisissez une année entre 1000 et {{ currentYear + 1 }}.</span>
+        <span class="field-error" *ngIf="livreForm.get('annee')?.invalid && livreForm.get('annee')?.touched">
+          Saisissez une année valide.
+        </span>
+      </div>
+
+      <div class="form-alert duplicate-error-banner" *ngIf="livreForm.hasError('duplicateLivre')" role="alert" aria-live="assertive">
+        <span class="form-alert-icon" aria-hidden="true">!</span>
+        <span>Ce livre existe déjà dans la collection.</span>
+      </div>
+      <p class="form-alert" *ngIf="modalErrorMessage" role="alert">{{ modalErrorMessage }}</p>
+
+      <footer class="modal-actions">
+        <button class="button button-secondary" type="button" [disabled]="isSaving" (click)="closeModal()">Annuler</button>
+        <button
+          class="button button-primary submit-button"
+          type="submit"
+          [disabled]="livreForm.invalid || isSaving"
+          (click)="onSubmitButtonClick($event)">
+          <span class="button-loading" *ngIf="isSaving">
+            <span class="spinner" aria-hidden="true"></span>
+            {{ isEditMode ? 'Enregistrement' : 'Ajout en cours' }}
+          </span>
+          <span *ngIf="!isSaving">{{ isEditMode ? 'Enregistrer' : 'Ajouter le livre' }}</span>
+        </button>
+      </footer>
+    </form>
+  </section>
 </div>
+
+<aside
+  *ngIf="notification as toast"
+  class="notification-toast notification-success"
+  [class.is-dismissing]="isNotificationLeaving"
+  role="status"
+  aria-live="polite">
+  <span class="notification-icon" aria-hidden="true">✓</span>
+  <p>{{ toast.message }}</p>
+  <button type="button" class="notification-close" aria-label="Fermer la notification" (click)="dismissNotification()">×</button>
+  <span class="notification-progress" aria-hidden="true"></span>
+</aside>

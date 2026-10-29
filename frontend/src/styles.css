@@ -1,1 +1,27 @@
-/* You can add global styles to this file, and also import other style files */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f3f5f2;
+  color: #1d2925;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #171d1a;
+    color: #e6ece8;
+  }
+}
