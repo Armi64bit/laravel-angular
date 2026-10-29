@@ -2,6 +2,17 @@
 
 use Illuminate\Support\Str;
 
+$sqliteDatabase = env('DB_DATABASE', 'database/database.sqlite');
+$isAbsoluteSqlitePath = Str::startsWith($sqliteDatabase, ['/', '\\'])
+    || (strlen($sqliteDatabase) >= 3
+        && ctype_alpha($sqliteDatabase[0])
+        && $sqliteDatabase[1] === ':'
+        && ($sqliteDatabase[2] === '/' || $sqliteDatabase[2] === '\\'));
+
+if ($sqliteDatabase !== ':memory:' && ! $isAbsoluteSqlitePath) {
+    $sqliteDatabase = base_path($sqliteDatabase);
+}
+
 return [
 
     /*
@@ -38,7 +49,7 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DATABASE_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
+            'database' => $sqliteDatabase,
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
         ],
