@@ -22,8 +22,8 @@
 
     <div class="collection-summary" *ngIf="!isLoading && !errorMessage">
       <span class="summary-label">Collection</span>
-      <span class="summary-value">{{ livres.length }}</span>
-      <span class="summary-unit">{{ livres.length === 1 ? 'ouvrage' : 'ouvrages' }}</span>
+      <span class="summary-value">{{ totalBooks }}</span>
+      <span class="summary-unit">{{ totalBooks === 1 ? 'ouvrage' : 'ouvrages' }}</span>
     </div>
 
     <div class="page-error" *ngIf="errorMessage" role="alert">
@@ -34,47 +34,84 @@
       <button class="button button-secondary" type="button" (click)="loadLivres()">Réessayer</button>
     </div>
 
-    <section class="book-panel" aria-label="Collection de livres" [attr.aria-busy]="isLoading">
-      <div class="table-scroll" *ngIf="!isLoading && livres.length > 0">
-        <table class="book-table">
+    <section class="book-panel" aria-label="Collection de livres" [attr.aria-busy]="isLoading || isTableLoading">
+      <div class="table-toolbar" *ngIf="!isLoading && livres.length > 0">
+        <button
+          class="sort-button mobile-sort-year"
+          type="button"
+          [disabled]="isTableLoading"
+          [class.is-active]="sortColumn === 'annee'"
+          [attr.aria-pressed]="sortColumn === 'annee'"
+          (click)="sortBy('annee')">
+          Trier par année
+          <span aria-hidden="true">{{ sortColumn === 'annee' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕' }}</span>
+        </button>
+        <label for="book-page-size">
+          Livres par page
+          <select id="book-page-size" class="button button-secondary" [disabled]="isTableLoading" (change)="changePageSize($event)">
+            <option *ngFor="let size of pageSizeOptions" [value]="size.toString()" [selected]="pageSize === size">{{ size }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-scroll" *ngIf="!isLoading && livres.length > 0" [attr.aria-busy]="isTableLoading">
+        <table id="books-table" class="book-table">
           <thead>
             <tr>
-              <th scope="col">Titre</th>
-              <th scope="col">Auteur</th>
-              <th scope="col">Année</th>
+              <th scope="col" [attr.aria-sort]="sortColumn === 'titre' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <button class="sort-button" type="button" [disabled]="isTableLoading" (click)="sortBy('titre')" [class.is-active]="sortColumn === 'titre'">
+                  Titre
+                  <span aria-hidden="true">{{ sortColumn === 'titre' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                </button>
+              </th>
+              <th scope="col" [attr.aria-sort]="sortColumn === 'auteur' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <button class="sort-button" type="button" [disabled]="isTableLoading" (click)="sortBy('auteur')" [class.is-active]="sortColumn === 'auteur'">
+                  Auteur
+                  <span aria-hidden="true">{{ sortColumn === 'auteur' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                </button>
+              </th>
+              <th class="year-column" scope="col" [attr.aria-sort]="sortColumn === 'annee' ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'">
+                <button class="sort-button" type="button" [disabled]="isTableLoading" (click)="sortBy('annee')" [class.is-active]="sortColumn === 'annee'">
+                  Année
+                  <span aria-hidden="true">{{ sortColumn === 'annee' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕' }}</span>
+                </button>
+              </th>
               <th scope="col"><span class="visually-hidden">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let livre of livresAffiches; trackBy: trackByLivreId">
-              <td class="book-title">{{ livre.titreAffiche }}</td>
+            <tr *ngFor="let livre of livresPage; trackBy: trackByLivreId">
+              <td class="book-title">
+                <span class="book-title-text" [title]="livre.titreAffiche">{{ livre.titreAffiche }}</span>
+                <span class="mobile-book-year">{{ livre.annee }}</span>
+              </td>
               <td class="book-author">
                 <button
                   *ngIf="livre.auteur_id != null"
                   class="book-author-link"
                   type="button"
-                  [disabled]="isAuteurLoading"
+                  [disabled]="isAuteurLoading || isTableLoading"
                   [attr.aria-label]="'Afficher les livres de ' + livre.auteurAffiche"
+                  [title]="livre.auteurAffiche"
                   (click)="openAuteurBooks(livre.auteur_id, livre.auteurAffiche, $event)">
                   {{ livre.auteurAffiche }}
                 </button>
                 <span *ngIf="livre.auteur_id == null">{{ livre.auteurAffiche }}</span>
               </td>
-              <td><span class="year-badge">{{ livre.annee }}</span></td>
+              <td class="year-column"><span class="year-badge">{{ livre.annee }}</span></td>
               <td class="row-actions">
                 <div class="row-action-content" [class.is-confirming]="confirmingLivreId === livre.id">
                   <div
                     class="row-action-buttons"
                     [attr.aria-hidden]="confirmingLivreId === livre.id"
                     [attr.inert]="confirmingLivreId === livre.id ? '' : null">
-                    <button class="icon-button edit-button" type="button" (click)="onEdit(livre)" [disabled]="deletingLivreId !== null" [attr.aria-label]="'Modifier ' + livre.titre">
+                    <button class="icon-button edit-button" type="button" (click)="onEdit(livre)" [disabled]="deletingLivreId !== null || isTableLoading" [attr.aria-label]="'Modifier ' + livre.titre">
                       Modifier
                     </button>
                     <button
                       class="icon-button delete-button"
                       type="button"
                       (click)="onDelete(livre.id, $event)"
-                      [disabled]="deletingLivreId !== null"
+                      [disabled]="deletingLivreId !== null || isTableLoading"
                       [attr.aria-label]="'Supprimer ' + livre.titre">
                       <span *ngIf="deletingLivreId !== livre.id">Supprimer</span>
                       <span class="button-loading" *ngIf="deletingLivreId === livre.id">
@@ -95,7 +132,7 @@
                       class="icon-button confirm-delete-button"
                       type="button"
                       (click)="confirmDelete(livre.id!)"
-                      [disabled]="deletingLivreId !== null"
+                      [disabled]="deletingLivreId !== null || isTableLoading"
                       [attr.tabindex]="confirmingLivreId === livre.id ? 0 : -1">
                       Supprimer
                     </button>
@@ -103,8 +140,42 @@
                 </div>
               </td>
             </tr>
+            <tr class="table-placeholder" aria-hidden="true" *ngFor="let row of emptyPageRows">
+              <td colspan="4"></td>
+            </tr>
           </tbody>
         </table>
+      </div>
+      <div class="table-pagination" *ngIf="!isLoading && livres.length > 0">
+        <span class="pagination-summary">
+          {{ firstVisibleBook }}-{{ lastVisibleBook }} sur {{ totalBooks }} livres
+        </span>
+        <nav class="pagination-controls" aria-label="Pagination des livres" [attr.aria-busy]="isTableLoading">
+          <button
+            class="button button-primary page-step"
+            type="button"
+            aria-label="Page précédente"
+            [disabled]="currentPage === 1 || isTableLoading"
+            (click)="goToPage(currentPage - 1)">Précédent</button>
+          <ng-container *ngFor="let item of paginationItems; trackBy: trackByPaginationItem">
+            <span class="pagination-ellipsis" *ngIf="item === 'ellipsis'" aria-hidden="true">…</span>
+            <button
+              class="icon-button page-button page-number"
+              type="button"
+              *ngIf="item !== 'ellipsis'"
+              [attr.aria-label]="'Page ' + item"
+              [attr.aria-current]="currentPage === item ? 'page' : null"
+              [class.is-current]="currentPage === item"
+              [disabled]="isTableLoading"
+              (click)="goToPage(item)">{{ item }}</button>
+          </ng-container>
+          <button
+            class="button button-primary page-step"
+            type="button"
+            aria-label="Page suivante"
+            [disabled]="currentPage === totalPages || isTableLoading"
+            (click)="goToPage(currentPage + 1)">Suivant</button>
+        </nav>
       </div>
 
       <div class="book-skeleton" *ngIf="isLoading" aria-label="Chargement des livres">
@@ -128,7 +199,7 @@
     </section>
 
     <p class="collection-note" *ngIf="!isLoading && !errorMessage && livres.length > 0">
-      {{ livres.length }} {{ livres.length === 1 ? 'livre enregistré' : 'livres enregistrés' }} dans votre collection
+      {{ totalBooks }} {{ totalBooks === 1 ? 'livre enregistré' : 'livres enregistrés' }} dans votre collection
     </p>
   </section>
 </main>
@@ -212,53 +283,19 @@
   </section>
 </div>
 
-<div
-  class="modal-backdrop"
-  *ngIf="auteurSelectionne as auteur"
-  (click)="$event.target === $event.currentTarget && closeAuteurModal()">
-  <section
-    class="author-modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="author-modal-title"
-    [attr.aria-busy]="isAuteurLoading">
-    <header class="modal-header">
-      <div>
-        <p class="eyebrow">Livres de la collection</p>
-        <h2 id="author-modal-title" tabindex="-1">{{ auteur.nom }}</h2>
-        <p class="author-book-count" *ngIf="!isAuteurLoading && !auteurErrorMessage">
-          {{ livresAuteur.length }} {{ livresAuteur.length === 1 ? 'livre' : 'livres' }}
-        </p>
-      </div>
-      <button
-        class="modal-close"
-        type="button"
-        aria-label="Fermer la fenêtre"
-        (click)="closeAuteurModal()">×</button>
-    </header>
-
-    <div class="author-books-loading" *ngIf="isAuteurLoading" role="status">
-      <span class="spinner" aria-hidden="true"></span>
-      <span>Chargement des livres…</span>
-    </div>
-
-    <div class="page-error author-books-error" *ngIf="auteurErrorMessage" role="alert">
-      <p>{{ auteurErrorMessage }}</p>
-      <button class="button button-secondary" type="button" (click)="retryAuteurBooks()">Réessayer</button>
-    </div>
-
-    <ul class="author-books-list" *ngIf="!isAuteurLoading && !auteurErrorMessage && livresAuteur.length > 0">
-      <li *ngFor="let livre of livresAuteur; trackBy: trackByLivreId">
-        <span>{{ livre.titreAffiche }}</span>
-        <span class="year-badge">{{ livre.annee }}</span>
-      </li>
-    </ul>
-
-    <div class="author-books-empty" *ngIf="!isAuteurLoading && !auteurErrorMessage && livresAuteur.length === 0">
-      Aucun livre de cet auteur n’est actuellement dans la collection.
-    </div>
-  </section>
-</div>
+<app-author-books-dialog
+  *ngIf="auteurSelectionne"
+  [auteur]="auteurSelectionne"
+  [livres]="livresAuteur"
+  [total]="auteurBooksTotal"
+  [page]="auteurBooksPage"
+  [lastPage]="auteurBooksLastPage"
+  [isLoading]="isAuteurLoading"
+  [errorMessage]="auteurErrorMessage"
+  (closeDialog)="closeAuteurModal()"
+  (pageChange)="goToAuteurBooksPage($event)"
+  (retry)="retryAuteurBooks()">
+</app-author-books-dialog>
 
 <aside
   *ngIf="notification as toast"

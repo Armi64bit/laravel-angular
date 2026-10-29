@@ -10,16 +10,57 @@ use App\Models\Livre;
 use App\Support\LivreIdentity;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class LivreController extends Controller
 {
     // GET /books - List all livres
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return LivreResource::collection(Livre::with('auteur')->latest()->get());
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', Rule::in([5, 10, 20])],
+            'sort_by' => ['sometimes', 'nullable', Rule::in(['titre', 'auteur', 'annee'])],
+            'sort_direction' => ['sometimes', Rule::in(['asc', 'desc'])],
+        ]);
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = (int) ($validated['per_page'] ?? 5);
+        $sortBy = $validated['sort_by'] ?? null;
+        $sortDirection = $validated['sort_direction'] ?? 'asc';
+        $query = Livre::query()->with('auteur');
+
+        if ($sortBy === 'titre') {
+            $query->orderBy('livres.titre_normalise', $sortDirection);
+        } elseif ($sortBy === 'auteur') {
+            $query->orderBy(
+                Auteur::query()
+                    ->select('nom_normalise')
+                    ->whereColumn('auteurs.id', 'livres.auteur_id'),
+                $sortDirection
+            );
+        } elseif ($sortBy === 'annee') {
+            $query->orderBy('livres.annee', $sortDirection);
+        } else {
+            $query->latest('livres.created_at');
+        }
+
+        $query->orderBy('livres.id', $sortBy === null ? 'desc' : 'asc');
+        $books = $query->paginate($perPage, ['livres.*'], 'page', $page);
+
+        if ($page > $books->lastPage()) {
+            $books = $query->paginate($perPage, ['livres.*'], 'page', $books->lastPage());
+        }
+
+        return LivreResource::collection($books)->additional([
+            'meta' => [
+                'sort_by' => $sortBy,
+                'sort_direction' => $sortDirection,
+            ],
+        ]);
     }
 
     // POST /books - Add a new livre

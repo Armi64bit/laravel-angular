@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { AuthorBooksDialogComponent } from './components/author-books-dialog/author-books-dialog.component';
 import { LivreManagerComponent } from './components/livre-manager/livre-manager.component';
 import { LivreService } from './services/livre.service';
 
@@ -19,11 +20,23 @@ describe('AppComponent routing', () => {
       'updateLivre',
       'deleteLivre'
     ]);
-    livreService.getLivres.and.returnValue(of({ data: [] }));
+    livreService.getLivres.and.returnValue(of({
+      data: [],
+      meta: {
+        current_page: 1,
+        from: null,
+        last_page: 1,
+        per_page: 5,
+        to: null,
+        total: 0,
+        sort_by: null,
+        sort_direction: 'desc' as const
+      }
+    }));
 
     TestBed.configureTestingModule({
       imports: [AppRoutingModule, CommonModule, ReactiveFormsModule],
-      declarations: [AppComponent, LivreManagerComponent],
+      declarations: [AppComponent, AuthorBooksDialogComponent, LivreManagerComponent],
       providers: [{ provide: LivreService, useValue: livreService }]
     }).compileComponents();
   }));

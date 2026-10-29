@@ -4,8 +4,76 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import { Livre } from '../../models/livre';
-import { LivreService } from '../../services/livre.service';
+import { AuteurBooksResponse, LivreListQuery, LivreListResponse, LivreService } from '../../services/livre.service';
+import { AuthorBooksDialogComponent } from '../author-books-dialog/author-books-dialog.component';
 import { LivreManagerComponent } from './livre-manager.component';
+
+function authorBooksResponse(
+  data: Livre[],
+  meta: Partial<AuteurBooksResponse['meta']> = {}
+): AuteurBooksResponse {
+  return {
+    data,
+    meta: {
+      current_page: 1,
+      last_page: 1,
+      per_page: 6,
+      total: data.length,
+      ...meta
+    }
+  };
+}
+
+function paginatedResponse(
+  data: Livre[],
+  meta: Partial<LivreListResponse['meta']> = {}
+): LivreListResponse {
+  return {
+    data,
+    meta: {
+      current_page: 1,
+      from: data.length > 0 ? 1 : null,
+      last_page: 1,
+      per_page: 5,
+      to: data.length > 0 ? data.length : null,
+      total: data.length,
+      sort_by: null,
+      sort_direction: 'desc',
+      ...meta
+    }
+  };
+}
+
+function serverPage(books: Livre[], query: LivreListQuery): LivreListResponse {
+  const sorted = [...books];
+  const sortBy = query.sort_by;
+  if (sortBy !== null) {
+    sorted.sort((first, second) => {
+      const comparison = sortBy === 'annee'
+        ? Number(first.annee) - Number(second.annee)
+        : String(first[sortBy]).localeCompare(String(second[sortBy]), 'fr-FR', { sensitivity: 'base' });
+
+      return comparison * (query.sort_direction === 'asc' ? 1 : -1);
+    });
+  }
+
+  const total = sorted.length;
+  const lastPage = Math.max(1, Math.ceil(total / query.per_page));
+  const currentPage = Math.min(query.page, lastPage);
+  const start = (currentPage - 1) * query.per_page;
+  const data = sorted.slice(start, start + query.per_page);
+
+  return paginatedResponse(data, {
+    current_page: currentPage,
+    from: total > 0 ? start + 1 : null,
+    last_page: lastPage,
+    per_page: query.per_page,
+    to: total > 0 ? start + data.length : null,
+    total,
+    sort_by: query.sort_by,
+    sort_direction: query.sort_direction
+  });
+}
 
 describe('LivreManagerComponent', () => {
   let component: LivreManagerComponent;
@@ -18,15 +86,15 @@ describe('LivreManagerComponent', () => {
       'LivreService',
       ['getLivres', 'getLivresByAuteur', 'addLivre', 'updateLivre', 'deleteLivre']
     );
-    livreService.getLivres.and.returnValue(of({ data: [livre] }));
-    livreService.getLivresByAuteur.and.returnValue(of({ data: [livre] }));
+    livreService.getLivres.and.returnValue(of(paginatedResponse([livre])));
+    livreService.getLivresByAuteur.and.returnValue(of(authorBooksResponse([livre])));
     livreService.addLivre.and.returnValue(of({}));
     livreService.updateLivre.and.returnValue(of({}));
     livreService.deleteLivre.and.returnValue(of({}));
 
     TestBed.configureTestingModule({
       imports: [CommonModule, ReactiveFormsModule],
-      declarations: [LivreManagerComponent],
+      declarations: [AuthorBooksDialogComponent, LivreManagerComponent],
       providers: [{ provide: LivreService, useValue: livreService }]
     }).compileComponents();
   }));
@@ -50,22 +118,54 @@ describe('LivreManagerComponent', () => {
       auteur: 'Antoine de Saint-Exupéry',
       annee: 1946
     };
-    livreService.getLivresByAuteur.and.returnValue(of({ data: [livre, secondBook] }));
+    livreService.getLivresByAuteur.and.returnValue(of(authorBooksResponse([livre, secondBook])));
 
     fixture.nativeElement.querySelector('.book-author-link').click();
     fixture.detectChanges();
 
-    expect(livreService.getLivresByAuteur).toHaveBeenCalledWith(7);
+    expect(livreService.getLivresByAuteur).toHaveBeenCalledWith(7, 1);
     expect(fixture.nativeElement.querySelector('.author-modal')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('#author-modal-title').textContent.trim())
       .toBe('Antoine de Saint-Exupéry');
     expect(fixture.nativeElement.querySelectorAll('.author-books-list li').length).toBe(2);
     expect(fixture.nativeElement.querySelector('.author-books-list').textContent)
       .toContain('Le Petit Prince illustré');
+    expect(fixture.nativeElement.querySelector('.author-books-pagination')).toBeNull();
+  });
+
+  it('paginates author books only when the author has more than one page', () => {
+    const books = Array.from({ length: 8 }, (_, index): Livre => ({
+      ...livre,
+      id: index + 1,
+      titre: `Livre ${index + 1}`
+    }));
+    livreService.getLivresByAuteur.and.callFake((auteurId, page = 1) => {
+      const lastPage = Math.ceil(books.length / 6);
+      const start = (page - 1) * 6;
+
+      return of(authorBooksResponse(books.slice(start, start + 6), {
+        current_page: page,
+        last_page: lastPage,
+        total: books.length
+      }));
+    });
+
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('.author-books-list li').length).toBe(6);
+    expect(fixture.nativeElement.querySelector('.author-books-pagination').textContent).toContain('Page 1 sur 2');
+
+    fixture.nativeElement.querySelector('.author-books-pagination button:last-child').click();
+    fixture.detectChanges();
+
+    expect(livreService.getLivresByAuteur).toHaveBeenCalledWith(7, 2);
+    expect(fixture.nativeElement.querySelectorAll('.author-books-list li').length).toBe(2);
+    expect(fixture.nativeElement.querySelector('.author-books-pagination').textContent).toContain('Page 2 sur 2');
   });
 
   it('shows a loading state while the author books are fetched', () => {
-    const pendingRequest = new Subject<{ data: Livre[] }>();
+    const pendingRequest = new Subject<AuteurBooksResponse>();
     livreService.getLivresByAuteur.and.returnValue(pendingRequest);
 
     fixture.nativeElement.querySelector('.book-author-link').click();
@@ -74,7 +174,7 @@ describe('LivreManagerComponent', () => {
     expect(component.isAuteurLoading).toBeTrue();
     expect(fixture.nativeElement.querySelector('.author-books-loading')).not.toBeNull();
 
-    pendingRequest.next({ data: [livre] });
+    pendingRequest.next(authorBooksResponse([livre]));
     pendingRequest.complete();
     fixture.detectChanges();
 
@@ -104,8 +204,41 @@ describe('LivreManagerComponent', () => {
     expect(fixture.nativeElement.querySelector('.author-modal')).toBeNull();
   });
 
+  it('traps keyboard focus inside the author dialog', () => {
+    const books = Array.from({ length: 8 }, (_, index): Livre => ({
+      ...livre,
+      id: index + 1,
+      titre: `Livre ${index + 1}`
+    }));
+    livreService.getLivresByAuteur.and.returnValue(of(authorBooksResponse(books.slice(0, 6), {
+      last_page: 2,
+      total: books.length
+    })));
+
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    const closeButton = fixture.nativeElement.querySelector('.author-modal-close') as HTMLButtonElement;
+    const nextPageButton = fixture.nativeElement.querySelector('.author-books-pagination button:last-child') as HTMLButtonElement;
+    closeButton.focus();
+    const shiftTab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true });
+
+    component.trapModalFocus(shiftTab);
+
+    expect(shiftTab.defaultPrevented).toBeTrue();
+    expect(document.activeElement).toBe(nextPageButton);
+
+    nextPageButton.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+
+    component.trapModalFocus(tab);
+
+    expect(tab.defaultPrevented).toBeTrue();
+    expect(document.activeElement).toBe(closeButton);
+  });
+
   it('keeps the existing table visible during a background refresh', () => {
-    const pendingRefresh = new Subject<{ data: Livre[] }>();
+    const pendingRefresh = new Subject<LivreListResponse>();
     livreService.getLivres.and.returnValue(pendingRefresh);
 
     component.loadLivres(false);
@@ -116,11 +249,11 @@ describe('LivreManagerComponent', () => {
     expect(fixture.nativeElement.querySelector('.book-skeleton')).toBeNull();
     expect(fixture.nativeElement.querySelector('.book-table')).not.toBeNull();
 
-    pendingRefresh.next({ data: [{ ...livre, titre: 'Titre actualisé' }] });
+    pendingRefresh.next(paginatedResponse([{ ...livre, titre: 'Titre actualisé' }]));
     pendingRefresh.complete();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.book-title').textContent.trim()).toBe('Titre actualisé');
+    expect(fixture.nativeElement.querySelector('.book-title-text').textContent.trim()).toBe('Titre actualisé');
     expect(fixture.nativeElement.querySelector('.book-table tbody tr')).toBe(originalRow);
     expect(fixture.nativeElement.querySelector('.book-skeleton')).toBeNull();
   });
@@ -129,17 +262,157 @@ describe('LivreManagerComponent', () => {
     expect(component.trackByLivreId(0, livre)).toBe(1);
   });
 
+  it('sorts books by title and toggles the sort direction', () => {
+    const books: Livre[] = [
+      { ...livre, id: 1, titre: 'Zulu' },
+      { ...livre, id: 2, titre: 'Alpha' },
+      { ...livre, id: 3, titre: 'Bravo' }
+    ];
+    livreService.getLivres.and.callFake((query) => of(serverPage(books, query)));
+    component.loadLivres(false);
+
+    fixture.nativeElement.querySelector('thead .sort-button').click();
+    fixture.detectChanges();
+
+    expect(component.livresPage.map((book) => book.titre)).toEqual(['Alpha', 'Bravo', 'Zulu']);
+    expect(fixture.nativeElement.querySelector('th[aria-sort="ascending"]')).not.toBeNull();
+    expect(livreService.getLivres).toHaveBeenCalledWith(jasmine.objectContaining({
+      sort_by: 'titre',
+      sort_direction: 'asc',
+      page: 1
+    }));
+
+    fixture.nativeElement.querySelector('thead .sort-button').click();
+    fixture.detectChanges();
+
+    expect(component.livresPage.map((book) => book.titre)).toEqual(['Zulu', 'Bravo', 'Alpha']);
+    expect(fixture.nativeElement.querySelector('th[aria-sort="descending"]')).not.toBeNull();
+  });
+
+  it('sorts years numerically rather than alphabetically', () => {
+    const books: Livre[] = [
+      { ...livre, id: 1, annee: 2000 },
+      { ...livre, id: 2, annee: 9000 },
+      { ...livre, id: 3, annee: 1100 }
+    ];
+    livreService.getLivres.and.callFake((query) => of(serverPage(books, query)));
+    component.loadLivres(false);
+
+    component.sortBy('annee');
+
+    expect(component.livresPage.map((book) => book.annee)).toEqual([1100, 2000, 9000]);
+  });
+
+  it('keeps year sorting available when the year column is hidden on mobile', () => {
+    fixture.nativeElement.querySelector('.mobile-sort-year').click();
+
+    expect(livreService.getLivres).toHaveBeenCalledWith(jasmine.objectContaining({
+      sort_by: 'annee',
+      page: 1
+    }));
+  });
+
+  it('paginates the collection and changes the page size', () => {
+    const books = Array.from({ length: 12 }, (_, index): Livre => ({
+      ...livre,
+      id: index + 1,
+      titre: `Livre ${index + 1}`
+    }));
+    livreService.getLivres.and.callFake((query) => of(serverPage(books, query)));
+    component.loadLivres(false);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement.querySelector('#book-page-size') as HTMLSelectElement).value).toBe('5');
+    expect(fixture.nativeElement.querySelectorAll('.book-table tbody tr').length).toBe(5);
+    expect(fixture.nativeElement.querySelectorAll('.book-table tbody tr:not(.table-placeholder)').length).toBe(5);
+    expect(livreService.getLivres).toHaveBeenCalledWith(jasmine.objectContaining({ per_page: 5 }));
+    expect(component.firstVisibleBook).toBe(1);
+    expect(component.lastVisibleBook).toBe(5);
+
+    component.goToPage(2);
+    fixture.detectChanges();
+
+    expect(component.livresPage.map((book) => book.id)).toEqual([6, 7, 8, 9, 10]);
+    expect(fixture.nativeElement.querySelectorAll('.book-table tbody tr').length).toBe(5);
+    expect(component.firstVisibleBook).toBe(6);
+    expect(component.lastVisibleBook).toBe(10);
+
+    const pageSize = fixture.nativeElement.querySelector('#book-page-size') as HTMLSelectElement;
+    pageSize.value = '20';
+    pageSize.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(component.currentPage).toBe(1);
+    expect(fixture.nativeElement.querySelectorAll('.book-table tbody tr').length).toBe(20);
+    expect(fixture.nativeElement.querySelectorAll('.book-table tbody tr:not(.table-placeholder)').length).toBe(12);
+  });
+
+  it('keeps the first and last pages visible with ellipses around the current page', () => {
+    const books = Array.from({ length: 100 }, (_, index): Livre => ({
+      ...livre,
+      id: index + 1,
+      titre: `Livre ${index + 1}`
+    }));
+    component.pageSize = 5;
+    livreService.getLivres.and.callFake((query) => of(serverPage(books, query)));
+    component.loadLivres(false);
+    fixture.detectChanges();
+
+    expect(component.paginationItems).toEqual([1, 2, 'ellipsis', 19, 20]);
+
+    fixture.nativeElement.querySelector('[aria-label="Page suivante"]').click();
+    fixture.detectChanges();
+
+    expect(component.currentPage).toBe(2);
+    expect(component.paginationItems).toEqual([1, 2, 3, 'ellipsis', 19, 20]);
+
+    for (let page = 0; page < 5; page += 1) {
+      fixture.nativeElement.querySelector('[aria-label="Page suivante"]').click();
+      fixture.detectChanges();
+    }
+
+    expect(component.currentPage).toBe(7);
+    expect(component.paginationItems).toEqual([1, 2, 'ellipsis', 6, 7, 8, 'ellipsis', 19, 20]);
+  });
+
+  it('sorts from the API and clamps the page after a refreshed collection shrinks', () => {
+    const books = Array.from({ length: 12 }, (_, index): Livre => ({
+      ...livre,
+      id: index + 1,
+      titre: `Livre ${index + 1}`
+    }));
+    livreService.getLivres.and.callFake((query) => of(serverPage(books, query)));
+    component.loadLivres(false);
+    component.goToPage(2);
+
+    component.sortBy('titre');
+
+    expect(component.currentPage).toBe(1);
+    expect(livreService.getLivres).toHaveBeenCalledWith(jasmine.objectContaining({
+      page: 1,
+      sort_by: 'titre',
+      sort_direction: 'asc'
+    }));
+
+    component.goToPage(2);
+    livreService.getLivres.and.callFake((query) => of(serverPage(books.slice(0, 3), query)));
+    component.loadLivres(false);
+
+    expect(component.currentPage).toBe(1);
+    expect(component.livresPage.length).toBe(3);
+  });
+
   it('capitalizes the first letter of displayed book titles and authors', () => {
-    livreService.getLivres.and.returnValue(of({ data: [{
+    livreService.getLivres.and.returnValue(of(paginatedResponse([{
       id: 2,
       titre: 'un titre',
       auteur: 'un auteur',
       annee: 2020
-    }] }));
+    }])));
     component.loadLivres(false);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.book-title').textContent.trim()).toBe('Un titre');
+    expect(fixture.nativeElement.querySelector('.book-title-text').textContent.trim()).toBe('Un titre');
     expect(fixture.nativeElement.querySelector('.book-author').textContent.trim()).toBe('Un auteur');
   });
 

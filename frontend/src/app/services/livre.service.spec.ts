@@ -1,13 +1,32 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { Livre } from '../models/livre';
-import { LivreService } from './livre.service';
+import { LivreListQuery, LivreListResponse, LivreService } from './livre.service';
 
 describe('LivreService', () => {
   let service: LivreService;
   let httpMock: HttpTestingController;
   const apiUrl = 'http://127.0.0.1:8000/api/books';
   const livre: Livre = { id: 1, titre: 'Le Petit Prince', auteur: 'Antoine de Saint-Exupéry', annee: 1943 };
+  const query: LivreListQuery = {
+    page: 2,
+    per_page: 5,
+    sort_by: 'titre',
+    sort_direction: 'asc'
+  };
+  const listResponse: LivreListResponse = {
+    data: [livre],
+    meta: {
+      current_page: 2,
+      from: 6,
+      last_page: 2,
+      per_page: 5,
+      to: 6,
+      total: 6,
+      sort_by: 'titre',
+      sort_direction: 'asc'
+    }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -22,23 +41,45 @@ describe('LivreService', () => {
   afterEach(() => httpMock.verify());
 
   it('gets the list of books', () => {
-    service.getLivres().subscribe(response => {
-      expect(response.data).toEqual([livre]);
+    service.getLivres(query).subscribe(response => {
+      expect(response).toEqual(listResponse);
     });
 
-    const request = httpMock.expectOne(apiUrl);
+    const request = httpMock.expectOne((req) =>
+      req.url === apiUrl
+      && req.params.get('page') === '2'
+      && req.params.get('per_page') === '5'
+      && req.params.get('sort_by') === 'titre'
+      && req.params.get('sort_direction') === 'asc'
+    );
     expect(request.request.method).toBe('GET');
-    request.flush({ data: [livre] });
+    request.flush(listResponse);
+  });
+
+  it('sends the pagination and sorting state to the API', () => {
+    service.getLivres(query).subscribe();
+
+    const request = httpMock.expectOne((req) => req.url === apiUrl);
+    expect(request.request.params.keys()).toEqual(['page', 'per_page', 'sort_direction', 'sort_by']);
+    expect(request.request.method).toBe('GET');
+    request.flush(listResponse);
   });
 
   it('gets books belonging to an author', () => {
-    service.getLivresByAuteur(1).subscribe(response => {
+    service.getLivresByAuteur(1, 2).subscribe(response => {
       expect(response.data).toEqual([livre]);
+      expect(response.meta.current_page).toBe(2);
     });
 
-    const request = httpMock.expectOne(`${apiUrl.replace('/books', '')}/authors/1/books`);
+    const request = httpMock.expectOne((req) =>
+      req.url === `${apiUrl.replace('/books', '')}/authors/1/books`
+      && req.params.get('page') === '2'
+    );
     expect(request.request.method).toBe('GET');
-    request.flush({ data: [livre] });
+    request.flush({
+      data: [livre],
+      meta: { current_page: 2, last_page: 2, per_page: 6, total: 7 }
+    });
   });
 
   it('creates a book', () => {

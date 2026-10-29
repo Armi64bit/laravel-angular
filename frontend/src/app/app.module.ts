@@ -5,11 +5,13 @@ import { ReactiveFormsModule } from '@angular/forms';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { AuthorBooksDialogComponent } from './components/author-books-dialog/author-books-dialog.component';
 import { LivreManagerComponent } from './components/livre-manager/livre-manager.component';
 
 @NgModule({
   declarations: [
     AppComponent,
+    AuthorBooksDialogComponent,
     LivreManagerComponent
   ],
   imports: [

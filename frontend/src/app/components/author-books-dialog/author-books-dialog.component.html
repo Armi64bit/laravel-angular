@@ -1,0 +1,64 @@
+<div
+  class="author-modal-backdrop"
+  *ngIf="auteur as selectedAuteur"
+  (click)="closeOnBackdropClick($event)">
+  <section
+    class="author-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="author-modal-title"
+    [attr.aria-busy]="isLoading">
+    <header class="author-modal-header">
+      <div>
+        <p class="author-modal-eyebrow">Livres de la collection</p>
+        <h2 id="author-modal-title" tabindex="-1">{{ selectedAuteur.nom }}</h2>
+        <p class="author-book-count" *ngIf="!isLoading && !errorMessage">
+          {{ total }} {{ total === 1 ? 'livre' : 'livres' }}
+        </p>
+      </div>
+      <button
+        class="author-modal-close"
+        type="button"
+        aria-label="Fermer la fenêtre"
+        (click)="closeDialog.emit()">×</button>
+    </header>
+
+    <div class="author-books-loading" *ngIf="isLoading" role="status">
+      <span class="author-books-spinner" aria-hidden="true"></span>
+      <span>Chargement des livres…</span>
+    </div>
+
+    <div class="author-books-error" *ngIf="errorMessage" role="alert">
+      <p>{{ errorMessage }}</p>
+      <button class="author-modal-button" type="button" (click)="retry.emit()">Réessayer</button>
+    </div>
+
+    <ul class="author-books-list" *ngIf="!isLoading && !errorMessage && livres.length > 0">
+      <li *ngFor="let livre of livres; trackBy: trackByLivreId">
+        <span>{{ livre.titreAffiche }}</span>
+        <span class="author-book-year">{{ livre.annee }}</span>
+      </li>
+    </ul>
+
+    <nav
+      class="author-books-pagination"
+      *ngIf="!isLoading && !errorMessage && lastPage > 1"
+      aria-label="Pagination des livres de l’auteur">
+      <button
+        class="author-modal-button"
+        type="button"
+        [disabled]="page === 1"
+        (click)="pageChange.emit(page - 1)">Précédent</button>
+      <span>Page {{ page }} sur {{ lastPage }}</span>
+      <button
+        class="author-modal-button"
+        type="button"
+        [disabled]="page === lastPage"
+        (click)="pageChange.emit(page + 1)">Suivant</button>
+    </nav>
+
+    <div class="author-books-empty" *ngIf="!isLoading && !errorMessage && livres.length === 0">
+      Aucun livre de cet auteur n’est actuellement dans la collection.
+    </div>
+  </section>
+</div>

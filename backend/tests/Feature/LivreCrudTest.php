@@ -27,7 +27,77 @@ class LivreCrudTest extends TestCase
             ->assertJsonPath('data.0.titre', 'Le Petit Prince')
             ->assertJsonPath('data.0.auteur', 'Antoine de Saint-Exupéry')
             ->assertJsonPath('data.0.auteur_id', Auteur::first()->id)
-            ->assertJsonPath('data.0.annee', 1943);
+            ->assertJsonPath('data.0.annee', 1943)
+            ->assertJsonPath('meta.per_page', 5);
+    }
+
+    public function test_it_paginates_and_sorts_books_on_the_server(): void
+    {
+        foreach (range(1, 7) as $number) {
+            $this->createLivre([
+                'titre' => sprintf('Book %02d', $number),
+                'auteur' => 'Test Author',
+                'annee' => 2000 + $number,
+            ]);
+        }
+
+        $this->getJson('/api/books?page=2&per_page=5&sort_by=titre&sort_direction=desc')
+            ->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.per_page', 5)
+            ->assertJsonPath('meta.total', 7)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.from', 6)
+            ->assertJsonPath('meta.to', 7)
+            ->assertJsonPath('meta.sort_by', 'titre')
+            ->assertJsonPath('meta.sort_direction', 'desc')
+            ->assertJsonPath('data.0.titre', 'Book 02')
+            ->assertJsonPath('data.1.titre', 'Book 01');
+
+        $this->getJson('/api/books?page=1&per_page=5&sort_by=annee&sort_direction=asc')
+            ->assertOk()
+            ->assertJsonPath('data.0.annee', 2001)
+            ->assertJsonPath('data.4.annee', 2005);
+
+        $this->createLivre([
+            'titre' => 'Z Author Book',
+            'auteur' => 'Zed Author',
+            'annee' => 1990,
+        ]);
+        $this->createLivre([
+            'titre' => 'A Author Book',
+            'auteur' => 'Alpha Author',
+            'annee' => 1991,
+        ]);
+
+        $this->getJson('/api/books?per_page=20&sort_by=auteur&sort_direction=asc')
+            ->assertOk()
+            ->assertJsonPath('data.0.titre', 'A Author Book')
+            ->assertJsonPath('data.1.titre', 'Book 01');
+    }
+
+    public function test_it_clamps_a_page_beyond_the_last_page(): void
+    {
+        foreach (range(1, 6) as $number) {
+            $this->createLivre([
+                'titre' => "Book {$number}",
+                'auteur' => 'Test Author',
+                'annee' => 2000 + $number,
+            ]);
+        }
+
+        $this->getJson('/api/books?page=3&per_page=5')
+            ->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.total', 6)
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_it_rejects_unsupported_book_list_parameters(): void
+    {
+        $this->getJson('/api/books?per_page=15&sort_by=invalid&sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['per_page', 'sort_by', 'sort_direction']);
     }
 
     public function test_it_eager_loads_authors_when_listing_books(): void
@@ -80,12 +150,39 @@ class LivreCrudTest extends TestCase
         $this->getJson("/api/authors/{$firstLivre->auteur_id}/books")
             ->assertOk()
             ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 1)
+            ->assertJsonPath('meta.per_page', 6)
+            ->assertJsonPath('meta.total', 2)
             ->assertJsonPath('data.0.auteur_id', $firstLivre->auteur_id)
             ->assertJsonFragment(['titre' => 'First book'])
             ->assertJsonFragment(['titre' => 'Second book'])
             ->assertJsonMissing(['titre' => 'Other book']);
 
         $this->assertSame($firstLivre->auteur_id, $secondLivre->auteur_id);
+    }
+
+    public function test_it_paginates_books_for_an_author(): void
+    {
+        $firstLivre = null;
+        foreach (range(1, 8) as $number) {
+            $livre = $this->createLivre([
+                'titre' => "Author book {$number}",
+                'auteur' => 'Prolific author',
+                'annee' => 2000 + $number,
+            ]);
+            $firstLivre ??= $livre;
+        }
+
+        $this->getJson("/api/authors/{$firstLivre->auteur_id}/books?page=2")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.per_page', 6)
+            ->assertJsonPath('meta.total', 8)
+            ->assertJsonPath('data.0.titre', 'Author book 2')
+            ->assertJsonPath('data.1.titre', 'Author book 1');
     }
 
     public function test_it_creates_a_book(): void
