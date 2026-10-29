@@ -1,17 +1,24 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { Livre } from '../../models/livre';
 import { LivreService } from '../../services/livre.service';
 
+interface LivreAffiche extends Livre {
+  titreAffiche: string;
+  auteurAffiche: string;
+}
+
 @Component({
   selector: 'app-livre-manager',
   templateUrl: './livre-manager.component.html',
-  styleUrls: ['./livre-manager.component.css']
+  styleUrls: ['./livre-manager.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LivreManagerComponent implements OnInit, OnDestroy {
   readonly currentYear = new Date().getFullYear();
   livres: Livre[] = [];
+  livresAffiches: LivreAffiche[] = [];
   livreForm!: FormGroup;
   isEditMode = false;
   isModalOpen = false;
@@ -30,7 +37,8 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
 
   constructor(
     private fb: FormBuilder,
-    private livreService: LivreService
+    private livreService: LivreService,
+    private changeDetector: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -92,20 +100,28 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     }, { validators: this.duplicateLivreValidator() });
   }
 
-  loadLivres(): void {
-    this.isLoading = true;
+  loadLivres(showLoading = true): void {
+    this.isLoading = showLoading;
     this.errorMessage = '';
+    this.changeDetector.markForCheck();
 
     this.livreService.getLivres().subscribe({
       next: (response) => {
         this.livres = response.data;
+        this.livresAffiches = this.livres.map((livre) => ({
+          ...livre,
+          titreAffiche: this.capitalizeInitial(livre.titre),
+          auteurAffiche: this.capitalizeInitial(livre.auteur)
+        }));
         this.livreForm.updateValueAndValidity();
         this.isLoading = false;
+        this.changeDetector.markForCheck();
       },
       error: (err) => {
         this.errorMessage = 'Impossible de charger les livres. Vérifiez que le serveur est disponible.';
         this.isLoading = false;
         console.error('Loading books failed', err);
+        this.changeDetector.markForCheck();
       }
     });
   }
@@ -117,6 +133,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     this.modalErrorMessage = '';
     this.livreForm.reset();
     this.isModalOpen = true;
+    this.changeDetector.markForCheck();
   }
 
   onSubmit(): void {
@@ -129,6 +146,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
 
     if (this.livreForm.invalid) {
       this.livreForm.markAllAsTouched();
+      this.changeDetector.markForCheck();
       return;
     }
 
@@ -139,6 +157,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
 
     this.isSaving = true;
     this.modalErrorMessage = '';
+    this.changeDetector.markForCheck();
     const wasCreating = !this.isEditMode;
 
     const request = this.isEditMode && this.selectedLivreId !== null
@@ -152,7 +171,8 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
         if (wasCreating) {
           this.showNotification('Le livre a été ajouté à votre collection.');
         }
-        this.loadLivres();
+        this.loadLivres(false);
+        this.changeDetector.markForCheck();
       },
       error: (err) => {
         this.isSaving = false;
@@ -160,6 +180,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
           ? 'La modification a échoué. Vérifiez votre connexion puis réessayez.'
           : 'L’ajout a échoué. Vérifiez votre connexion puis réessayez.');
         console.error(this.isEditMode ? 'Update failed' : 'Creation failed', err);
+        this.changeDetector.markForCheck();
       }
     });
   }
@@ -185,20 +206,31 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       annee: livre.annee
     });
     this.isModalOpen = true;
+    this.changeDetector.markForCheck();
   }
 
-  onDelete(id?: number): void {
+  trackByLivreId(index: number, livre: Livre): number | string {
+    return livre.id ?? `livre-${index}`;
+  }
+
+  onDelete(id?: number, event?: MouseEvent): void {
     if (id == null || this.deletingLivreId !== null) {
       return;
     }
 
     this.errorMessage = '';
     this.confirmingLivreId = id;
+    this.changeDetector.markForCheck();
+    const row = event?.currentTarget instanceof HTMLElement
+      ? event.currentTarget.closest('tr')
+      : null;
+    setTimeout(() => row?.querySelector<HTMLElement>('.cancel-delete-button')?.focus(), 0);
   }
 
   cancelDelete(): void {
     if (this.deletingLivreId === null) {
       this.confirmingLivreId = null;
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -210,16 +242,19 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     this.confirmingLivreId = null;
     this.deletingLivreId = id;
     this.errorMessage = '';
+    this.changeDetector.markForCheck();
     this.livreService.deleteLivre(id).subscribe({
       next: () => {
         this.deletingLivreId = null;
-        this.loadLivres();
+        this.loadLivres(false);
+        this.changeDetector.markForCheck();
       },
       error: (err) => {
         this.deletingLivreId = null;
         this.confirmingLivreId = id;
         this.errorMessage = 'La suppression a échoué. Vérifiez votre connexion puis réessayez.';
         console.error('Deletion failed', err);
+        this.changeDetector.markForCheck();
       }
     });
   }
@@ -236,12 +271,14 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     this.livreForm.reset();
     this.returnFocusElement?.focus();
     this.returnFocusElement = null;
+    this.changeDetector.markForCheck();
   }
 
   capitalizeField(field: 'titre' | 'auteur'): void {
     const control = this.livreForm.get(field);
     if (control && typeof control.value === 'string') {
       control.setValue(this.capitalizeInitial(control.value));
+      this.changeDetector.markForCheck();
     }
   }
 
@@ -273,7 +310,9 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       this.notification = null;
       this.isNotificationLeaving = false;
       this.notificationExitTimeout = null;
+      this.changeDetector.markForCheck();
     }, 240);
+    this.changeDetector.markForCheck();
   }
 
   private duplicateLivreValidator(): ValidatorFn {
@@ -325,5 +364,6 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     this.isNotificationLeaving = false;
     this.notification = { message };
     this.notificationTimeout = setTimeout(() => this.dismissNotification(), 3000);
+    this.changeDetector.markForCheck();
   }
 }

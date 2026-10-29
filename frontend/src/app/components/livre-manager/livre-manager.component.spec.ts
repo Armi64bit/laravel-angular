@@ -41,8 +41,39 @@ describe('LivreManagerComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Le Petit Prince');
   });
 
+  it('keeps the existing table visible during a background refresh', () => {
+    const pendingRefresh = new Subject<{ data: Livre[] }>();
+    livreService.getLivres.and.returnValue(pendingRefresh);
+
+    component.loadLivres(false);
+    fixture.detectChanges();
+
+    const originalRow = fixture.nativeElement.querySelector('.book-table tbody tr');
+    expect(component.isLoading).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.book-skeleton')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.book-table')).not.toBeNull();
+
+    pendingRefresh.next({ data: [{ ...livre, titre: 'Titre actualisé' }] });
+    pendingRefresh.complete();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.book-title').textContent.trim()).toBe('Titre actualisé');
+    expect(fixture.nativeElement.querySelector('.book-table tbody tr')).toBe(originalRow);
+    expect(fixture.nativeElement.querySelector('.book-skeleton')).toBeNull();
+  });
+
+  it('tracks rendered books by their stable IDs', () => {
+    expect(component.trackByLivreId(0, livre)).toBe(1);
+  });
+
   it('capitalizes the first letter of displayed book titles and authors', () => {
-    component.livres = [{ id: 2, titre: 'un titre', auteur: 'un auteur', annee: 2020 }];
+    livreService.getLivres.and.returnValue(of({ data: [{
+      id: 2,
+      titre: 'un titre',
+      auteur: 'un auteur',
+      annee: 2020
+    }] }));
+    component.loadLivres(false);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.book-title').textContent.trim()).toBe('Un titre');
@@ -330,12 +361,19 @@ describe('LivreManagerComponent', () => {
   });
 
   it('shows an inline confirmation before deleting a book', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.delete-confirmation').getAttribute('aria-hidden')).toBe('true');
+
     component.onDelete(livre.id);
     fixture.detectChanges();
 
     expect(component.confirmingLivreId).toBe(1);
     expect(livreService.deleteLivre).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain('Supprimer ce livre ?');
+    expect(fixture.nativeElement.querySelector('.row-action-content').classList).toContain('is-confirming');
+    expect(fixture.nativeElement.querySelector('.row-action-buttons').getAttribute('aria-hidden')).toBe('true');
+    expect(fixture.nativeElement.querySelector('.delete-confirmation').getAttribute('aria-hidden')).toBe('false');
+    expect(fixture.nativeElement.querySelector('.delete-button')).not.toBeNull();
   });
 
   it('cancels inline deletion without calling the API', () => {

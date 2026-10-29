@@ -46,41 +46,50 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let livre of livres; let index = index" [style.animation-delay.ms]="index * 45">
-              <td class="book-title">{{ capitalizeInitial(livre.titre) }}</td>
-              <td class="book-author">{{ capitalizeInitial(livre.auteur) }}</td>
+            <tr *ngFor="let livre of livresAffiches; trackBy: trackByLivreId">
+              <td class="book-title">{{ livre.titreAffiche }}</td>
+              <td class="book-author">{{ livre.auteurAffiche }}</td>
               <td><span class="year-badge">{{ livre.annee }}</span></td>
               <td class="row-actions">
-                <ng-container *ngIf="confirmingLivreId !== livre.id; else deleteConfirmation">
-                  <button class="icon-button edit-button" type="button" (click)="onEdit(livre)" [disabled]="deletingLivreId !== null" [attr.aria-label]="'Modifier ' + livre.titre">
-                    Modifier
-                  </button>
-                  <button
-                    class="icon-button delete-button"
-                    type="button"
-                    (click)="onDelete(livre.id)"
-                    [disabled]="deletingLivreId !== null"
-                    [attr.aria-label]="'Supprimer ' + livre.titre">
-                    <span *ngIf="deletingLivreId !== livre.id">Supprimer</span>
-                    <span class="button-loading" *ngIf="deletingLivreId === livre.id">
-                      <span class="spinner spinner-small" aria-hidden="true"></span>
-                      Suppression
-                    </span>
-                  </button>
-                </ng-container>
-                <ng-template #deleteConfirmation>
-                  <div class="delete-confirmation" role="group" [attr.aria-label]="'Confirmation de suppression pour ' + livre.titre">
+                <div class="row-action-content" [class.is-confirming]="confirmingLivreId === livre.id">
+                  <div
+                    class="row-action-buttons"
+                    [attr.aria-hidden]="confirmingLivreId === livre.id"
+                    [attr.inert]="confirmingLivreId === livre.id ? '' : null">
+                    <button class="icon-button edit-button" type="button" (click)="onEdit(livre)" [disabled]="deletingLivreId !== null" [attr.aria-label]="'Modifier ' + livre.titre">
+                      Modifier
+                    </button>
+                    <button
+                      class="icon-button delete-button"
+                      type="button"
+                      (click)="onDelete(livre.id, $event)"
+                      [disabled]="deletingLivreId !== null"
+                      [attr.aria-label]="'Supprimer ' + livre.titre">
+                      <span *ngIf="deletingLivreId !== livre.id">Supprimer</span>
+                      <span class="button-loading" *ngIf="deletingLivreId === livre.id">
+                        <span class="spinner spinner-small" aria-hidden="true"></span>
+                        Suppression
+                      </span>
+                    </button>
+                  </div>
+                  <div
+                    class="delete-confirmation"
+                    [attr.aria-hidden]="confirmingLivreId !== livre.id"
+                    [attr.inert]="confirmingLivreId !== livre.id ? '' : null"
+                    [attr.role]="confirmingLivreId === livre.id ? 'group' : null"
+                    [attr.aria-label]="confirmingLivreId === livre.id ? 'Confirmation de suppression pour ' + livre.titre : null">
                     <span class="delete-prompt">Supprimer ce livre ?</span>
-                    <button class="icon-button cancel-delete-button" type="button" (click)="cancelDelete()">Annuler</button>
+                    <button class="icon-button cancel-delete-button" type="button" (click)="cancelDelete()" [attr.tabindex]="confirmingLivreId === livre.id ? 0 : -1">Annuler</button>
                     <button
                       class="icon-button confirm-delete-button"
                       type="button"
                       (click)="confirmDelete(livre.id!)"
-                      [disabled]="deletingLivreId !== null">
+                      [disabled]="deletingLivreId !== null"
+                      [attr.tabindex]="confirmingLivreId === livre.id ? 0 : -1">
                       Supprimer
                     </button>
                   </div>
-                </ng-template>
+                </div>
               </td>
             </tr>
           </tbody>
