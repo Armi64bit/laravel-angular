@@ -48,7 +48,18 @@
           <tbody>
             <tr *ngFor="let livre of livresAffiches; trackBy: trackByLivreId">
               <td class="book-title">{{ livre.titreAffiche }}</td>
-              <td class="book-author">{{ livre.auteurAffiche }}</td>
+              <td class="book-author">
+                <button
+                  *ngIf="livre.auteur_id != null"
+                  class="book-author-link"
+                  type="button"
+                  [disabled]="isAuteurLoading"
+                  [attr.aria-label]="'Afficher les livres de ' + livre.auteurAffiche"
+                  (click)="openAuteurBooks(livre.auteur_id, livre.auteurAffiche, $event)">
+                  {{ livre.auteurAffiche }}
+                </button>
+                <span *ngIf="livre.auteur_id == null">{{ livre.auteurAffiche }}</span>
+              </td>
               <td><span class="year-badge">{{ livre.annee }}</span></td>
               <td class="row-actions">
                 <div class="row-action-content" [class.is-confirming]="confirmingLivreId === livre.id">
@@ -198,6 +209,54 @@
         </button>
       </footer>
     </form>
+  </section>
+</div>
+
+<div
+  class="modal-backdrop"
+  *ngIf="auteurSelectionne as auteur"
+  (click)="$event.target === $event.currentTarget && closeAuteurModal()">
+  <section
+    class="author-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="author-modal-title"
+    [attr.aria-busy]="isAuteurLoading">
+    <header class="modal-header">
+      <div>
+        <p class="eyebrow">Livres de la collection</p>
+        <h2 id="author-modal-title" tabindex="-1">{{ auteur.nom }}</h2>
+        <p class="author-book-count" *ngIf="!isAuteurLoading && !auteurErrorMessage">
+          {{ livresAuteur.length }} {{ livresAuteur.length === 1 ? 'livre' : 'livres' }}
+        </p>
+      </div>
+      <button
+        class="modal-close"
+        type="button"
+        aria-label="Fermer la fenêtre"
+        (click)="closeAuteurModal()">×</button>
+    </header>
+
+    <div class="author-books-loading" *ngIf="isAuteurLoading" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Chargement des livres…</span>
+    </div>
+
+    <div class="page-error author-books-error" *ngIf="auteurErrorMessage" role="alert">
+      <p>{{ auteurErrorMessage }}</p>
+      <button class="button button-secondary" type="button" (click)="retryAuteurBooks()">Réessayer</button>
+    </div>
+
+    <ul class="author-books-list" *ngIf="!isAuteurLoading && !auteurErrorMessage && livresAuteur.length > 0">
+      <li *ngFor="let livre of livresAuteur; trackBy: trackByLivreId">
+        <span>{{ livre.titreAffiche }}</span>
+        <span class="year-badge">{{ livre.annee }}</span>
+      </li>
+    </ul>
+
+    <div class="author-books-empty" *ngIf="!isAuteurLoading && !auteurErrorMessage && livresAuteur.length === 0">
+      Aucun livre de cet auteur n’est actuellement dans la collection.
+    </div>
   </section>
 </div>
 

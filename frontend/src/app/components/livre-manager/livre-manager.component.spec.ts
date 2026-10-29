@@ -11,14 +11,15 @@ describe('LivreManagerComponent', () => {
   let component: LivreManagerComponent;
   let fixture: ComponentFixture<LivreManagerComponent>;
   let livreService: jasmine.SpyObj<LivreService>;
-  const livre: Livre = { id: 1, titre: 'Le Petit Prince', auteur: 'Antoine de Saint-Exupéry', annee: 1943 };
+  const livre: Livre = { id: 1, auteur_id: 7, titre: 'Le Petit Prince', auteur: 'Antoine de Saint-Exupéry', annee: 1943 };
 
   beforeEach(waitForAsync(() => {
     livreService = jasmine.createSpyObj<LivreService>(
       'LivreService',
-      ['getLivres', 'addLivre', 'updateLivre', 'deleteLivre']
+      ['getLivres', 'getLivresByAuteur', 'addLivre', 'updateLivre', 'deleteLivre']
     );
     livreService.getLivres.and.returnValue(of({ data: [livre] }));
+    livreService.getLivresByAuteur.and.returnValue(of({ data: [livre] }));
     livreService.addLivre.and.returnValue(of({}));
     livreService.updateLivre.and.returnValue(of({}));
     livreService.deleteLivre.and.returnValue(of({}));
@@ -39,6 +40,68 @@ describe('LivreManagerComponent', () => {
   it('loads and displays books', () => {
     expect(component.livres).toEqual([livre]);
     expect(fixture.nativeElement.textContent).toContain('Le Petit Prince');
+  });
+
+  it('opens the selected author dialog with that author’s books', () => {
+    const secondBook: Livre = {
+      id: 2,
+      auteur_id: 7,
+      titre: 'Le Petit Prince illustré',
+      auteur: 'Antoine de Saint-Exupéry',
+      annee: 1946
+    };
+    livreService.getLivresByAuteur.and.returnValue(of({ data: [livre, secondBook] }));
+
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    expect(livreService.getLivresByAuteur).toHaveBeenCalledWith(7);
+    expect(fixture.nativeElement.querySelector('.author-modal')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('#author-modal-title').textContent.trim())
+      .toBe('Antoine de Saint-Exupéry');
+    expect(fixture.nativeElement.querySelectorAll('.author-books-list li').length).toBe(2);
+    expect(fixture.nativeElement.querySelector('.author-books-list').textContent)
+      .toContain('Le Petit Prince illustré');
+  });
+
+  it('shows a loading state while the author books are fetched', () => {
+    const pendingRequest = new Subject<{ data: Livre[] }>();
+    livreService.getLivresByAuteur.and.returnValue(pendingRequest);
+
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    expect(component.isAuteurLoading).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.author-books-loading')).not.toBeNull();
+
+    pendingRequest.next({ data: [livre] });
+    pendingRequest.complete();
+    fixture.detectChanges();
+
+    expect(component.isAuteurLoading).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.author-books-list li')).not.toBeNull();
+  });
+
+  it('shows a retryable error when the author books cannot be loaded', () => {
+    spyOn(console, 'error');
+    livreService.getLivresByAuteur.and.returnValue(throwError(() => new Error('Request failed')));
+
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    expect(component.auteurErrorMessage).toContain('Impossible de charger les livres');
+    expect(fixture.nativeElement.querySelector('.author-books-error')).not.toBeNull();
+  });
+
+  it('closes the author dialog when Escape is pressed', () => {
+    fixture.nativeElement.querySelector('.book-author-link').click();
+    fixture.detectChanges();
+
+    component.onEscape();
+    fixture.detectChanges();
+
+    expect(component.isAuteurModalOpen).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.author-modal')).toBeNull();
   });
 
   it('keeps the existing table visible during a background refresh', () => {
@@ -254,6 +317,20 @@ describe('LivreManagerComponent', () => {
 
     component.livreForm.patchValue({ titre: 'A different title' });
 
+    expect(component.livreForm.hasError('duplicateLivre')).toBeFalse();
+  });
+
+  it('treats case and repeated whitespace as the same book identity', () => {
+    component.openCreateModal();
+    component.livreForm.setValue({
+      titre: '  le   petit prince ',
+      auteur: 'ANTOINE  DE SAINT-EXUPÉRY',
+      annee: 1943
+    });
+
+    expect(component.livreForm.hasError('duplicateLivre')).toBeTrue();
+
+    component.livreForm.patchValue({ auteur: 'A different author' });
     expect(component.livreForm.hasError('duplicateLivre')).toBeFalse();
   });
 

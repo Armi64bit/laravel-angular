@@ -280,6 +280,33 @@ h1 {
   color: var(--ink-soft);
 }
 
+.book-author-link {
+  padding: 2px 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color 150ms ease, text-decoration-color 150ms ease;
+}
+
+.book-author-link:hover:not(:disabled) {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.book-author-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.book-author-link:disabled {
+  cursor: wait;
+}
+
 .year-badge {
   display: inline-flex;
   min-width: 48px;
@@ -553,6 +580,86 @@ h1 {
   border-radius: 18px;
   box-shadow: 0 26px 80px rgb(15 29 23 / 25%);
   animation: modal-enter 220ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.author-modal {
+  width: min(100%, 520px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid rgb(255 255 255 / 50%);
+  border-radius: 18px;
+  box-shadow: 0 26px 80px rgb(15 29 23 / 25%);
+  animation: modal-enter 220ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.author-modal .modal-header {
+  margin-bottom: 20px;
+}
+
+.author-modal .modal-header h2 {
+  overflow-wrap: anywhere;
+}
+
+.author-book-count {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.author-books-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(48dvh, 360px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 3px 0 0;
+  list-style: none;
+}
+
+.author-books-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  animation: page-enter 180ms ease-out both;
+}
+
+.author-books-list li > span:first-child {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.author-books-loading,
+.author-books-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 90px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  text-align: center;
+}
+
+.author-books-error {
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.author-books-error p {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .modal-header {
@@ -971,6 +1078,13 @@ h1 {
   }
 
   .book-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    padding: 23px 20px max(23px, env(safe-area-inset-bottom));
+    border-radius: 18px 18px 14px 14px;
+  }
+
+  .author-modal {
     width: 100%;
     max-height: calc(100dvh - 24px);
     padding: 23px 20px max(23px, env(safe-area-inset-bottom));

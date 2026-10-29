@@ -7,12 +7,17 @@ import { Livre } from '../models/livre';
   providedIn: 'root'
 })
 export class LivreService {
-  private apiUrl = 'http://127.0.0.1:8000/api/books';
+  private apiBaseUrl = 'http://127.0.0.1:8000/api';
+  private apiUrl = `${this.apiBaseUrl}/books`;
 
   constructor(private http: HttpClient) {}
 
   getLivres(): Observable<{ data: Livre[] }> {
     return this.http.get<{ data: Livre[] }>(this.apiUrl);
+  }
+
+  getLivresByAuteur(auteurId: number): Observable<{ data: Livre[] }> {
+    return this.http.get<{ data: Livre[] }>(`${this.apiBaseUrl}/authors/${auteurId}/books`);
   }
 
   addLivre(livre: Livre): Observable<unknown> {

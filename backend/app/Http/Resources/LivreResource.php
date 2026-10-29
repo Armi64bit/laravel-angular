@@ -17,7 +17,8 @@ class LivreResource extends JsonResource
         return [
             'id' => $this->id,
             'titre' => $this->titre,
-            'auteur' => $this->auteur,
+            'auteur' => $this->whenLoaded('auteur', fn () => $this->auteur->nom),
+            'auteur_id' => $this->auteur_id,
             'annee' => $this->annee,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

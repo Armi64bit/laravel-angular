@@ -31,6 +31,16 @@ describe('LivreService', () => {
     request.flush({ data: [livre] });
   });
 
+  it('gets books belonging to an author', () => {
+    service.getLivresByAuteur(1).subscribe(response => {
+      expect(response.data).toEqual([livre]);
+    });
+
+    const request = httpMock.expectOne(`${apiUrl.replace('/books', '')}/authors/1/books`);
+    expect(request.request.method).toBe('GET');
+    request.flush({ data: [livre] });
+  });
+
   it('creates a book', () => {
     service.addLivre(livre).subscribe();
 

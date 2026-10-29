@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Livre;
+use App\Support\LivreIdentity;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreLivreRequest extends FormRequest
 {
@@ -18,7 +21,7 @@ class StoreLivreRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -27,19 +30,34 @@ class StoreLivreRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('livres', 'titre')
-                    ->where('auteur', $this->input('auteur'))
-                    ->where('annee', $this->input('annee')),
             ],
             'auteur' => ['required', 'string', 'max:255'],
-            'annee' => ['required', 'integer', 'min:1000', 'max:' . (date('Y') + 1)],
+            'annee' => ['required', 'integer', 'min:1000', 'max:'.(date('Y') + 1)],
         ];
     }
 
-    public function messages(): array
+    public function withValidator(Validator $validator): void
     {
-        return [
-            'titre.unique' => 'Ce livre existe déjà dans la collection.',
-        ];
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $isDuplicate = Livre::query()
+                ->where('titre_normalise', LivreIdentity::normalize($this->input('titre')))
+                ->where('annee', $this->input('annee'))
+                ->whereHas(
+                    'auteur',
+                    fn ($query) => $query->where(
+                        'nom_normalise',
+                        LivreIdentity::normalize($this->input('auteur'))
+                    )
+                )
+                ->exists();
+
+            if ($isDuplicate) {
+                $validator->errors()->add('titre', 'Ce livre existe déjà dans la collection.');
+            }
+        });
     }
 }
