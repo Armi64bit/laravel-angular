@@ -14,7 +14,8 @@ use App\Http\Controllers\LivreController;
 |
 */
 // Maps GET, POST, PUT, DELETE for /books 
-Route::apiResource('books', LivreController::class);
+Route::apiResource('books', LivreController::class)
+    ->parameters(['books' => 'livre']);
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();

@@ -1,0 +1,65 @@
+<div class="container" style="max-width: 800px; margin: 30px auto; font-family: sans-serif;">
+  <h2>Gestion des Livres (Smart Conseil Test)</h2>
+
+  <!-- Form Section -->
+  <form [formGroup]="livreForm" (ngSubmit)="onSubmit()" style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+    <h3>{{ isEditMode ? 'Modifier le Livre' : 'Ajouter un Nouveau Livre' }}</h3>
+
+    <div style="margin-bottom: 10px;">
+      <label>Titre :</label><br>
+      <input type="text" formControlName="titre" style="width: 100%; padding: 8px;">
+      <small *ngIf="livreForm.get('titre')?.invalid && livreForm.get('titre')?.touched" style="color: red;">
+        Le titre est requis.
+      </small>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <label>Auteur :</label><br>
+      <input type="text" formControlName="auteur" style="width: 100%; padding: 8px;">
+      <small *ngIf="livreForm.get('auteur')?.invalid && livreForm.get('auteur')?.touched" style="color: red;">
+        L'auteur est requis.
+      </small>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <label>Année :</label><br>
+      <input type="number" formControlName="annee" style="width: 100%; padding: 8px;">
+      <small *ngIf="livreForm.get('annee')?.invalid && livreForm.get('annee')?.touched" style="color: red;">
+        Une année valide est requise.
+      </small>
+    </div>
+
+    <button type="submit" [disabled]="livreForm.invalid" style="padding: 10px 15px; background: #007bff; color: white; border: none; cursor: pointer;">
+      {{ isEditMode ? 'Mettre à jour' : 'Ajouter' }}
+    </button>
+    <button type="button" (click)="resetForm()" *ngIf="isEditMode" style="padding: 10px 15px; margin-left: 10px; background: #6c757d; color: white; border: none; cursor: pointer;">
+      Annuler
+    </button>
+  </form>
+
+  <!-- Data Table Section -->
+  <table border="1" cellpadding="10" cellspacing="0" style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr style="background: #e9ecef;">
+        <th>Titre</th>
+        <th>Auteur</th>
+        <th>Année</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let livre of livres">
+        <td>{{ livre.titre }}</td>
+        <td>{{ livre.auteur }}</td>
+        <td>{{ livre.annee }}</td>
+        <td>
+          <button (click)="onEdit(livre)" style="margin-right: 5px; background: #ffc107; border: none; padding: 5px 10px; cursor: pointer;">Modifier</button>
+          <button (click)="onDelete(livre.id)" style="background: #dc3545; color: white; border: none; padding: 5px 10px; cursor: pointer;">Supprimer</button>
+        </td>
+      </tr>
+      <tr *ngIf="livres.length === 0">
+        <td colspan="4" style="text-align: center;">Aucun livre trouvé.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

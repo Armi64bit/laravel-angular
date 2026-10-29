@@ -18,7 +18,7 @@ class LivreController extends Controller
     }
 
     // POST /books - Add a new livre
-    public function store(StoreLivreRequest $request): LivreResource
+    public function store(StoreLivreRequest $request): JsonResponse
     {
         $livre = Livre::create($request->validated());
 
