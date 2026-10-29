@@ -1,29 +1,51 @@
-import { TestBed } from '@angular/core/testing';
-import { RouterTestingModule } from '@angular/router/testing';
+import { CommonModule } from '@angular/common';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
+import { ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { of } from 'rxjs';
+import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
+import { LivreManagerComponent } from './components/livre-manager/livre-manager.component';
+import { LivreService } from './services/livre.service';
 
-describe('AppComponent', () => {
-  beforeEach(() => TestBed.configureTestingModule({
-    imports: [RouterTestingModule],
-    declarations: [AppComponent]
+describe('AppComponent routing', () => {
+  let fixture: ComponentFixture<AppComponent>;
+  let router: Router;
+
+  beforeEach(waitForAsync(() => {
+    const livreService = jasmine.createSpyObj<LivreService>('LivreService', [
+      'getLivres',
+      'addLivre',
+      'updateLivre',
+      'deleteLivre'
+    ]);
+    livreService.getLivres.and.returnValue(of({ data: [] }));
+
+    TestBed.configureTestingModule({
+      imports: [AppRoutingModule, CommonModule, ReactiveFormsModule],
+      declarations: [AppComponent, LivreManagerComponent],
+      providers: [{ provide: LivreService, useValue: livreService }]
+    }).compileComponents();
   }));
 
-  it('should create the app', () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app).toBeTruthy();
+  beforeEach(() => {
+    fixture = TestBed.createComponent(AppComponent);
+    router = TestBed.inject(Router);
   });
 
-  it(`should have as title 'frontend'`, () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
-    expect(app.title).toEqual('frontend');
-  });
-
-  it('should render title', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('redirects the root URL to the books page', async () => {
+    await router.navigateByUrl('/');
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.content span')?.textContent).toContain('frontend app is running!');
+
+    expect(router.url).toBe('/livres');
+    expect(fixture.nativeElement.querySelector('app-livre-manager')).not.toBeNull();
+  });
+
+  it('redirects unknown URLs to the books page', async () => {
+    await router.navigateByUrl('/unknown');
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/livres');
+    expect(fixture.nativeElement.querySelector('app-livre-manager')).not.toBeNull();
   });
 });
