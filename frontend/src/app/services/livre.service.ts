@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Livre } from '../models/livre';
+import { environment } from '../../environments/environment';
 
 export type LivreSortColumn = 'titre' | 'auteur' | 'annee';
 
@@ -40,8 +41,8 @@ export interface AuteurBooksResponse {
   providedIn: 'root'
 })
 export class LivreService {
-  private apiBaseUrl = 'http://127.0.0.1:8000/api';
-  private apiUrl = `${this.apiBaseUrl}/books`;
+  private readonly apiBaseUrl = environment.apiUrl;
+  private readonly apiUrl = `${this.apiBaseUrl}/books`;
 
   constructor(private http: HttpClient) {}
 

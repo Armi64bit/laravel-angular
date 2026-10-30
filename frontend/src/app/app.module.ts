@@ -7,12 +7,14 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { AuthorBooksDialogComponent } from './components/author-books-dialog/author-books-dialog.component';
 import { LivreManagerComponent } from './components/livre-manager/livre-manager.component';
+import { NotificationToastComponent } from './components/notification-toast/notification-toast.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     AuthorBooksDialogComponent,
-    LivreManagerComponent
+    LivreManagerComponent,
+    NotificationToastComponent
   ],
   imports: [
     BrowserModule,

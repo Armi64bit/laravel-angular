@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { Livre } from '../models/livre';
+import { environment } from '../../environments/environment';
 import { LivreListQuery, LivreListResponse, LivreService } from './livre.service';
 
 describe('LivreService', () => {
   let service: LivreService;
   let httpMock: HttpTestingController;
-  const apiUrl = 'http://127.0.0.1:8000/api/books';
+  const apiUrl = `${environment.apiUrl}/books`;
   const livre: Livre = { id: 1, titre: 'Le Petit Prince', auteur: 'Antoine de Saint-Exupéry', annee: 1943 };
   const query: LivreListQuery = {
     page: 2,

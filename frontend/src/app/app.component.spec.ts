@@ -7,6 +7,7 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { AuthorBooksDialogComponent } from './components/author-books-dialog/author-books-dialog.component';
 import { LivreManagerComponent } from './components/livre-manager/livre-manager.component';
+import { NotificationToastComponent } from './components/notification-toast/notification-toast.component';
 import { LivreService } from './services/livre.service';
 
 describe('AppComponent routing', () => {
@@ -36,7 +37,7 @@ describe('AppComponent routing', () => {
 
     TestBed.configureTestingModule({
       imports: [AppRoutingModule, CommonModule, ReactiveFormsModule],
-      declarations: [AppComponent, AuthorBooksDialogComponent, LivreManagerComponent],
+      declarations: [AppComponent, AuthorBooksDialogComponent, LivreManagerComponent, NotificationToastComponent],
       providers: [{ provide: LivreService, useValue: livreService }]
     }).compileComponents();
   }));

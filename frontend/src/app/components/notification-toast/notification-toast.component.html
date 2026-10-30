@@ -1,0 +1,13 @@
+<aside
+  class="notification-toast"
+  [class.notification-success]="variant === 'success'"
+  [class.notification-error]="variant === 'error'"
+  [class.notification-info]="variant === 'info'"
+  [class.is-dismissing]="isDismissing"
+  [attr.role]="variant === 'error' ? 'alert' : 'status'"
+  [attr.aria-live]="variant === 'error' ? 'assertive' : 'polite'">
+  <span class="notification-icon" aria-hidden="true">{{ icon }}</span>
+  <p>{{ message }}</p>
+  <button type="button" class="notification-close" aria-label="Fermer la notification" (click)="dismiss()">×</button>
+  <span class="notification-progress" aria-hidden="true"></span>
+</aside>

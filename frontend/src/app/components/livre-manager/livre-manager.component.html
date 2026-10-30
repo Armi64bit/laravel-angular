@@ -89,7 +89,7 @@
                   *ngIf="livre.auteur_id != null"
                   class="book-author-link"
                   type="button"
-                  [disabled]="isAuteurLoading || isTableLoading"
+                  [disabled]="isTableLoading"
                   [attr.aria-label]="'Afficher les livres de ' + livre.auteurAffiche"
                   [title]="livre.auteurAffiche"
                   (click)="openAuteurBooks(livre.auteur_id, livre.auteurAffiche, $event)">
@@ -286,25 +286,12 @@
 <app-author-books-dialog
   *ngIf="auteurSelectionne"
   [auteur]="auteurSelectionne"
-  [livres]="livresAuteur"
-  [total]="auteurBooksTotal"
-  [page]="auteurBooksPage"
-  [lastPage]="auteurBooksLastPage"
-  [isLoading]="isAuteurLoading"
-  [errorMessage]="auteurErrorMessage"
-  (closeDialog)="closeAuteurModal()"
-  (pageChange)="goToAuteurBooksPage($event)"
-  (retry)="retryAuteurBooks()">
+  (closeDialog)="closeAuteurModal()">
 </app-author-books-dialog>
 
-<aside
+<app-notification-toast
   *ngIf="notification as toast"
-  class="notification-toast notification-success"
-  [class.is-dismissing]="isNotificationLeaving"
-  role="status"
-  aria-live="polite">
-  <span class="notification-icon" aria-hidden="true">✓</span>
-  <p>{{ toast.message }}</p>
-  <button type="button" class="notification-close" aria-label="Fermer la notification" (click)="dismissNotification()">×</button>
-  <span class="notification-progress" aria-hidden="true"></span>
-</aside>
+  [message]="toast.message"
+  [variant]="toast.variant"
+  (dismissed)="dismissNotification()">
+</app-notification-toast>

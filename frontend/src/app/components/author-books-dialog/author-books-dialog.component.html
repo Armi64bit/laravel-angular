@@ -30,7 +30,7 @@
 
     <div class="author-books-error" *ngIf="errorMessage" role="alert">
       <p>{{ errorMessage }}</p>
-      <button class="author-modal-button" type="button" (click)="retry.emit()">Réessayer</button>
+      <button class="author-modal-button" type="button" (click)="retry()">Réessayer</button>
     </div>
 
     <ul class="author-books-list" *ngIf="!isLoading && !errorMessage && livres.length > 0">
@@ -48,13 +48,13 @@
         class="author-modal-button"
         type="button"
         [disabled]="page === 1"
-        (click)="pageChange.emit(page - 1)">Précédent</button>
+        (click)="goToPage(page - 1)">Précédent</button>
       <span>Page {{ page }} sur {{ lastPage }}</span>
       <button
         class="author-modal-button"
         type="button"
         [disabled]="page === lastPage"
-        (click)="pageChange.emit(page + 1)">Suivant</button>
+        (click)="goToPage(page + 1)">Suivant</button>
     </nav>
 
     <div class="author-books-empty" *ngIf="!isLoading && !errorMessage && livres.length === 0">

@@ -100,6 +100,17 @@ class LivreCrudTest extends TestCase
             ->assertJsonValidationErrors(['per_page', 'sort_by', 'sort_direction']);
     }
 
+    public function test_it_rejects_non_positive_or_non_integer_book_list_pages(): void
+    {
+        $this->getJson('/api/books?page=0')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['page']);
+
+        $this->getJson('/api/books?page=not-a-number')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['page']);
+    }
+
     public function test_it_eager_loads_authors_when_listing_books(): void
     {
         $this->createLivre([
@@ -185,6 +196,40 @@ class LivreCrudTest extends TestCase
             ->assertJsonPath('data.1.titre', 'Author book 1');
     }
 
+    public function test_it_clamps_an_author_books_page_beyond_the_last_page(): void
+    {
+        $firstLivre = null;
+        foreach (range(1, 7) as $number) {
+            $livre = $this->createLivre([
+                'titre' => "Author book {$number}",
+                'auteur' => 'Prolific author',
+                'annee' => 2000 + $number,
+            ]);
+            $firstLivre ??= $livre;
+        }
+
+        $this->getJson("/api/authors/{$firstLivre->auteur_id}/books?page=99")
+            ->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.total', 7)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titre', 'Author book 1');
+    }
+
+    public function test_it_rejects_invalid_author_books_page_numbers(): void
+    {
+        $auteur = Auteur::create(['nom' => 'Test author']);
+
+        $this->getJson("/api/authors/{$auteur->id}/books?page=0")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['page']);
+
+        $this->getJson("/api/authors/{$auteur->id}/books?page=invalid")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['page']);
+    }
+
     public function test_it_creates_a_book(): void
     {
         $this->postJson('/api/books', [
@@ -213,6 +258,20 @@ class LivreCrudTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['titre', 'annee']);
+    }
+
+    public function test_it_does_not_create_a_book_or_author_when_required_data_is_invalid(): void
+    {
+        $this->postJson('/api/books', [
+            'titre' => str_repeat('T', 256),
+            'auteur' => 'New author',
+            'annee' => date('Y') + 2,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['titre', 'annee']);
+
+        $this->assertDatabaseCount('livres', 0);
+        $this->assertDatabaseCount('auteurs', 0);
     }
 
     public function test_it_rejects_a_duplicate_book(): void
@@ -297,6 +356,53 @@ class LivreCrudTest extends TestCase
             'auteur_id' => Auteur::where('nom', 'Updated author')->value('id'),
             'annee' => 1943,
         ]);
+    }
+
+    public function test_it_allows_updating_a_book_without_matching_itself_as_a_duplicate(): void
+    {
+        $livre = $this->createLivre([
+            'titre' => 'Le Petit Prince',
+            'auteur' => 'Antoine de Saint-Exupéry',
+            'annee' => 1943,
+        ]);
+
+        $this->putJson("/api/books/{$livre->id}", [
+            'titre' => '  le   petit prince ',
+            'auteur' => ' ANTOINE DE SAINT-EXUPÉRY ',
+            'annee' => 1943,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $livre->id)
+            ->assertJsonPath('data.titre', 'le petit prince')
+            ->assertJsonPath('data.auteur', 'Antoine de Saint-Exupéry');
+
+        $this->assertDatabaseCount('livres', 1);
+        $this->assertDatabaseCount('auteurs', 1);
+    }
+
+    public function test_it_rejects_invalid_update_data_without_changing_the_book(): void
+    {
+        $livre = $this->createLivre([
+            'titre' => 'Original title',
+            'auteur' => 'Original author',
+            'annee' => 2000,
+        ]);
+
+        $this->putJson("/api/books/{$livre->id}", [
+            'titre' => '',
+            'auteur' => str_repeat('A', 256),
+            'annee' => 'not-a-year',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['titre', 'auteur', 'annee']);
+
+        $this->assertDatabaseHas('livres', [
+            'id' => $livre->id,
+            'titre' => 'Original title',
+            'auteur_id' => $livre->auteur_id,
+            'annee' => 2000,
+        ]);
+        $this->assertDatabaseCount('auteurs', 1);
     }
 
     public function test_it_rejects_updating_a_book_to_an_existing_duplicate(): void

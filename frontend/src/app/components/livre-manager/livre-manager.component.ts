@@ -1,15 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnDestroy, OnInit } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, HostListener, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Livre } from '../../models/livre';
-import { AuteurBooksResponse, LivreListQuery, LivreService, LivreSortColumn } from '../../services/livre.service';
+import { LivreListQuery, LivreService, LivreSortColumn } from '../../services/livre.service';
+import { duplicateLivreValidator } from '../../utils/livre-form.validators';
+import { capitalizeInitial, cleanLivreText } from '../../utils/livre-text';
+import { getPaginationItems, PaginationItem } from '../../utils/pagination';
 
 interface LivreAffiche extends Livre {
   titreAffiche: string;
   auteurAffiche: string;
 }
-
-type PaginationItem = number | 'ellipsis';
 
 @Component({
   selector: 'app-livre-manager',
@@ -17,10 +18,9 @@ type PaginationItem = number | 'ellipsis';
   styleUrls: ['./livre-manager.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class LivreManagerComponent implements OnInit, OnDestroy {
+export class LivreManagerComponent implements OnInit {
   readonly currentYear = new Date().getFullYear();
   readonly pageSizeOptions = [5, 10, 20];
-  readonly auteurBooksPageSize = 6;
   livres: Livre[] = [];
   livresAffiches: LivreAffiche[] = [];
   livresPage: LivreAffiche[] = [];
@@ -36,7 +36,6 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   isEditMode = false;
   isModalOpen = false;
   isAuteurModalOpen = false;
-  isAuteurLoading = false;
   isLoading = true;
   isTableLoading = false;
   isSaving = false;
@@ -45,18 +44,9 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   selectedLivreId: number | null = null;
   errorMessage = '';
   modalErrorMessage = '';
-  auteurErrorMessage = '';
   auteurSelectionne: { id: number; nom: string } | null = null;
-  livresAuteur: LivreAffiche[] = [];
-  auteurBooksTotal = 0;
-  auteurBooksPage = 1;
-  auteurBooksLastPage = 1;
-  notification: { message: string } | null = null;
-  isNotificationLeaving = false;
+  notification: { message: string; variant: 'success' } | null = null;
   private returnFocusElement: HTMLElement | null = null;
-  private notificationTimeout: ReturnType<typeof setTimeout> | null = null;
-  private notificationExitTimeout: ReturnType<typeof setTimeout> | null = null;
-  private auteurRequestId = 0;
   private livreRequestId = 0;
 
   constructor(
@@ -68,15 +58,6 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initForm();
     this.loadLivres();
-  }
-
-  ngOnDestroy(): void {
-    if (this.notificationTimeout !== null) {
-      clearTimeout(this.notificationTimeout);
-    }
-    if (this.notificationExitTimeout !== null) {
-      clearTimeout(this.notificationExitTimeout);
-    }
   }
 
   @HostListener('document:keydown.escape')
@@ -124,7 +105,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       titre: ['', [Validators.required, Validators.maxLength(255)]],
       auteur: ['', [Validators.required, Validators.maxLength(255)]],
       annee: ['', [Validators.required, Validators.min(1000), Validators.max(currentYear + 1)]]
-    }, { validators: this.duplicateLivreValidator() });
+    }, { validators: duplicateLivreValidator(() => this.livres, () => this.selectedLivreId) });
   }
 
   loadLivres(showLoading = true, overrides: Partial<LivreListQuery> = {}): void {
@@ -153,8 +134,8 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
         this.livres = response.data;
         this.livresAffiches = this.livres.map((livre) => ({
           ...livre,
-          titreAffiche: this.capitalizeInitial(livre.titre),
-          auteurAffiche: this.capitalizeInitial(livre.auteur)
+          titreAffiche: capitalizeInitial(livre.titre),
+          auteurAffiche: capitalizeInitial(livre.auteur)
         }));
         this.livresPage = this.livresAffiches;
         this.totalBooks = response.meta.total;
@@ -209,8 +190,8 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
     }
 
     const livreData: Livre = this.livreForm.getRawValue();
-    livreData.titre = this.cleanIdentityValue(livreData.titre);
-    livreData.auteur = this.cleanIdentityValue(livreData.auteur);
+    livreData.titre = cleanLivreText(livreData.titre);
+    livreData.auteur = cleanLivreText(livreData.auteur);
     livreData.annee = Number(livreData.annee);
 
     this.isSaving = true;
@@ -226,9 +207,9 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       next: () => {
         this.isSaving = false;
         this.closeModal();
-        if (wasCreating) {
-          this.showNotification('Le livre a été ajouté à votre collection.');
-        }
+        this.showNotification(wasCreating
+          ? 'Le livre a été ajouté à votre collection.'
+          : 'Le livre a été modifié avec succès.');
         this.loadLivres(false, { page: wasCreating ? 1 : this.currentPage });
         this.changeDetector.markForCheck();
       },
@@ -276,32 +257,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   }
 
   get paginationItems(): PaginationItem[] {
-    if (this.totalPages <= 6) {
-      return Array.from({ length: this.totalPages }, (_, index) => index + 1);
-    }
-
-    const pages = new Set([1, 2, this.totalPages - 1, this.totalPages]);
-    for (let page = this.currentPage - 1; page <= this.currentPage + 1; page += 1) {
-      if (page > 2 && page < this.totalPages - 1) {
-        pages.add(page);
-      }
-    }
-
-    const sortedPages = Array.from(pages).sort((first, second) => first - second);
-    const items: PaginationItem[] = [];
-    sortedPages.forEach((page, index) => {
-      if (index > 0) {
-        const gap = page - sortedPages[index - 1];
-        if (gap === 2) {
-          items.push(page - 1);
-        } else if (gap > 2) {
-          items.push('ellipsis');
-        }
-      }
-      items.push(page);
-    });
-
-    return items;
+    return getPaginationItems(this.currentPage, this.totalPages);
   }
 
   get emptyPageRows(): number[] {
@@ -363,7 +319,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   }
 
   openAuteurBooks(auteurId: number | undefined, auteurNom: string, event: MouseEvent): void {
-    if (auteurId == null || this.isAuteurLoading) {
+    if (auteurId == null) {
       return;
     }
 
@@ -371,39 +327,13 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       ? event.currentTarget
       : null;
     this.auteurSelectionne = { id: auteurId, nom: auteurNom };
-    this.livresAuteur = [];
-    this.auteurBooksTotal = 0;
-    this.auteurBooksPage = 1;
-    this.auteurBooksLastPage = 1;
     this.isAuteurModalOpen = true;
-    this.loadAuteurBooks(auteurId, 1);
     setTimeout(() => document.getElementById('author-modal-title')?.focus(), 0);
   }
 
-  goToAuteurBooksPage(page: number): void {
-    if (!this.auteurSelectionne || this.isAuteurLoading || page < 1 || page > this.auteurBooksLastPage || page === this.auteurBooksPage) {
-      return;
-    }
-
-    this.loadAuteurBooks(this.auteurSelectionne.id, page);
-  }
-
-  retryAuteurBooks(): void {
-    if (this.auteurSelectionne) {
-      this.loadAuteurBooks(this.auteurSelectionne.id, this.auteurBooksPage);
-    }
-  }
-
   closeAuteurModal(): void {
-    this.auteurRequestId += 1;
     this.isAuteurModalOpen = false;
-    this.isAuteurLoading = false;
     this.auteurSelectionne = null;
-    this.auteurErrorMessage = '';
-    this.livresAuteur = [];
-    this.auteurBooksTotal = 0;
-    this.auteurBooksPage = 1;
-    this.auteurBooksLastPage = 1;
     this.returnFocusElement?.focus();
     this.returnFocusElement = null;
     this.changeDetector.markForCheck();
@@ -473,25 +403,9 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   capitalizeField(field: 'titre' | 'auteur'): void {
     const control = this.livreForm.get(field);
     if (control && typeof control.value === 'string') {
-      control.setValue(this.capitalizeInitial(control.value));
+      control.setValue(capitalizeInitial(control.value));
       this.changeDetector.markForCheck();
     }
-  }
-
-  capitalizeInitial(value: string): string {
-    const characters = Array.from(value.trimStart());
-    const firstCharacter = characters.shift();
-    return firstCharacter
-      ? `${firstCharacter.toLocaleUpperCase('fr-FR')}${characters.join('')}`
-      : '';
-  }
-
-  private cleanIdentityValue(value: string): string {
-    return value.trim().replace(/\s+/gu, ' ');
-  }
-
-  private normalizeIdentity(value: string): string {
-    return this.cleanIdentityValue(value).toLocaleLowerCase('fr-FR');
   }
 
   private rememberFocusedElement(): void {
@@ -500,81 +414,9 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
       : null;
   }
 
-  private loadAuteurBooks(auteurId: number, page: number): void {
-    const requestId = ++this.auteurRequestId;
-    this.isAuteurLoading = true;
-    this.auteurErrorMessage = '';
-    this.changeDetector.markForCheck();
-
-    this.livreService.getLivresByAuteur(auteurId, page).subscribe({
-      next: (response) => {
-        if (requestId !== this.auteurRequestId) {
-          return;
-        }
-
-        this.livresAuteur = response.data.map((livre) => ({
-          ...livre,
-          titreAffiche: this.capitalizeInitial(livre.titre),
-          auteurAffiche: this.capitalizeInitial(livre.auteur)
-        }));
-        this.auteurBooksTotal = response.meta.total;
-        this.auteurBooksPage = response.meta.current_page;
-        this.auteurBooksLastPage = Math.max(1, response.meta.last_page);
-        this.isAuteurLoading = false;
-        this.changeDetector.markForCheck();
-      },
-      error: (err) => {
-        if (requestId !== this.auteurRequestId) {
-          return;
-        }
-
-        this.auteurErrorMessage = 'Impossible de charger les livres de cet auteur. Vérifiez votre connexion puis réessayez.';
-        this.isAuteurLoading = false;
-        console.error('Loading books by author failed', err);
-        this.changeDetector.markForCheck();
-      }
-    });
-  }
-
   dismissNotification(): void {
-    if (!this.notification || this.isNotificationLeaving) {
-      return;
-    }
-
-    if (this.notificationTimeout !== null) {
-      clearTimeout(this.notificationTimeout);
-      this.notificationTimeout = null;
-    }
-    this.isNotificationLeaving = true;
-    this.notificationExitTimeout = setTimeout(() => {
-      this.notification = null;
-      this.isNotificationLeaving = false;
-      this.notificationExitTimeout = null;
-      this.changeDetector.markForCheck();
-    }, 240);
+    this.notification = null;
     this.changeDetector.markForCheck();
-  }
-
-  private duplicateLivreValidator(): ValidatorFn {
-    return (control: AbstractControl): ValidationErrors | null => {
-      const titre = String(control.get('titre')?.value ?? '').trim();
-      const auteur = String(control.get('auteur')?.value ?? '').trim();
-      const anneeValue = control.get('annee')?.value;
-      const annee = Number(anneeValue);
-
-      if (!titre || !auteur || anneeValue === '' || !Number.isFinite(annee)) {
-        return null;
-      }
-
-      const isDuplicate = this.livres.some((livre) =>
-        livre.id !== this.selectedLivreId
-        && this.normalizeIdentity(livre.titre) === this.normalizeIdentity(titre)
-        && this.normalizeIdentity(livre.auteur) === this.normalizeIdentity(auteur)
-        && Number(livre.annee) === annee
-      );
-
-      return isDuplicate ? { duplicateLivre: true } : null;
-    };
   }
 
   private getDuplicateErrorMessage(error: unknown): string | null {
@@ -593,17 +435,7 @@ export class LivreManagerComponent implements OnInit, OnDestroy {
   }
 
   private showNotification(message: string): void {
-    if (this.notificationTimeout !== null) {
-      clearTimeout(this.notificationTimeout);
-    }
-    if (this.notificationExitTimeout !== null) {
-      clearTimeout(this.notificationExitTimeout);
-      this.notificationExitTimeout = null;
-    }
-
-    this.isNotificationLeaving = false;
-    this.notification = { message };
-    this.notificationTimeout = setTimeout(() => this.dismissNotification(), 3000);
+    this.notification = { message, variant: 'success' };
     this.changeDetector.markForCheck();
   }
 }

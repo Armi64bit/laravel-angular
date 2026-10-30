@@ -6,6 +6,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { Livre } from '../../models/livre';
 import { AuteurBooksResponse, LivreListQuery, LivreListResponse, LivreService } from '../../services/livre.service';
 import { AuthorBooksDialogComponent } from '../author-books-dialog/author-books-dialog.component';
+import { NotificationToastComponent } from '../notification-toast/notification-toast.component';
 import { LivreManagerComponent } from './livre-manager.component';
 
 function authorBooksResponse(
@@ -94,7 +95,7 @@ describe('LivreManagerComponent', () => {
 
     TestBed.configureTestingModule({
       imports: [CommonModule, ReactiveFormsModule],
-      declarations: [AuthorBooksDialogComponent, LivreManagerComponent],
+      declarations: [AuthorBooksDialogComponent, LivreManagerComponent, NotificationToastComponent],
       providers: [{ provide: LivreService, useValue: livreService }]
     }).compileComponents();
   }));
@@ -171,14 +172,13 @@ describe('LivreManagerComponent', () => {
     fixture.nativeElement.querySelector('.book-author-link').click();
     fixture.detectChanges();
 
-    expect(component.isAuteurLoading).toBeTrue();
     expect(fixture.nativeElement.querySelector('.author-books-loading')).not.toBeNull();
 
     pendingRequest.next(authorBooksResponse([livre]));
     pendingRequest.complete();
     fixture.detectChanges();
 
-    expect(component.isAuteurLoading).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.author-books-loading')).toBeNull();
     expect(fixture.nativeElement.querySelector('.author-books-list li')).not.toBeNull();
   });
 
@@ -189,8 +189,17 @@ describe('LivreManagerComponent', () => {
     fixture.nativeElement.querySelector('.book-author-link').click();
     fixture.detectChanges();
 
-    expect(component.auteurErrorMessage).toContain('Impossible de charger les livres');
-    expect(fixture.nativeElement.querySelector('.author-books-error')).not.toBeNull();
+    const error = fixture.nativeElement.querySelector('.author-books-error');
+    expect(error).not.toBeNull();
+    expect(error.textContent).toContain('Impossible de charger les livres');
+
+    livreService.getLivresByAuteur.and.returnValue(of(authorBooksResponse([livre])));
+    fixture.nativeElement.querySelector('.author-books-error button').click();
+    fixture.detectChanges();
+
+    expect(livreService.getLivresByAuteur).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.querySelector('.author-books-error')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.author-books-list li')).not.toBeNull();
   });
 
   it('closes the author dialog when Escape is pressed', () => {
@@ -523,7 +532,8 @@ describe('LivreManagerComponent', () => {
     fixture.detectChanges();
 
     expect(component.notification).toEqual({
-      message: 'Le livre a été ajouté à votre collection.'
+      message: 'Le livre a été ajouté à votre collection.',
+      variant: 'success'
     });
     expect(fixture.nativeElement.querySelector('.notification-success')).not.toBeNull();
   });
@@ -538,7 +548,7 @@ describe('LivreManagerComponent', () => {
     component.onSubmit();
     fixture.detectChanges();
 
-    component.dismissNotification();
+    fixture.nativeElement.querySelector('.notification-close').click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.notification-toast.is-dismissing')).not.toBeNull();
 
@@ -563,12 +573,14 @@ describe('LivreManagerComponent', () => {
     expect(progress).not.toBeNull();
 
     tick(2999);
-    expect(component.isNotificationLeaving).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.notification-toast.is-dismissing')).toBeNull();
 
     tick(1);
-    expect(component.isNotificationLeaving).toBeTrue();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.notification-toast.is-dismissing')).not.toBeNull();
 
     tick(240);
+    fixture.detectChanges();
     expect(component.notification).toBeNull();
   }));
 
@@ -701,6 +713,7 @@ describe('LivreManagerComponent', () => {
     component.livreForm.patchValue({ titre: 'Updated title' });
 
     component.onSubmit();
+    fixture.detectChanges();
 
     expect(livreService.updateLivre).toHaveBeenCalledWith(1, {
       titre: 'Updated title',
@@ -708,6 +721,8 @@ describe('LivreManagerComponent', () => {
       annee: 1943
     });
     expect(component.isEditMode).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.notification-success p').textContent.trim())
+      .toBe('Le livre a été modifié avec succès.');
   });
 
   it('shows an inline confirmation before deleting a book', () => {
