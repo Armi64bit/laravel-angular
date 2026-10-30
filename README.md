@@ -22,6 +22,12 @@ php artisan migrate
 php artisan serve
 ```
 
+La migration ajoute automatiquement la collection initiale de 30 livres à une nouvelle base de données. Elle ne crée pas de doublons si des livres identiques sont déjà présents. Les tests Laravel n’ajoutent pas ces données de démonstration.
+
+> *La commande `composer install` peut prendre un peu de temps pendant la génération des fichiers d’autoload optimisés. Laissez-la se terminer : cette étape ne devrait pas durer plus de 3 minutes.*
+
+> *Avertissement sécurité : ce projet utilise Laravel 10, une version qui n’est plus maintenue et dont l’écosystème peut comporter des vulnérabilités connues. Dans `backend/composer.json`, la politique Composer autorise l’installation malgré les avis de sécurité (`block: false`) afin que les dépendances puissent être installées. Cela ne corrige pas ces vulnérabilités et ne rend pas l’application sûre pour la production ; privilégiez une version de Laravel maintenue pour tout déploiement.*
+
 L’API est exposée localement sur : `http://127.0.0.1:8000`. Gardez ce terminal ouvert.
 
 > *Note : Si `backend/.env` existe déjà, vérifiez simplement qu'il utilise SQLite et que `DB_DATABASE` pointe vers `database/database.sqlite`.*
