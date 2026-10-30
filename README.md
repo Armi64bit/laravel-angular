@@ -8,6 +8,8 @@ Application de gestion d’une collection de livres, comprenant une API REST Lar
 - Node.js & npm
 - Google Chrome (nécessaire pour exécuter les tests Angular en mode headless)
 
+> *Le frontend utilise Angular 16, conformément à la version requise pour ce projet. L’audit npm peut signaler des vulnérabilités dans Angular 16 et ses dépendances ; cette version est conservée pour respecter cette contrainte et ne doit pas être mise à niveau sans autorisation.*
+
 ## Lancer le backend
 
 Dans PowerShell, depuis la racine du dépôt :
